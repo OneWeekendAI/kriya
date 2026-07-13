@@ -1,8 +1,10 @@
 #!/usr/bin/env node
 /**
  * Kriya MCP server. Signs in as a real Kriya member (RLS applies — the agent
- * can do exactly what its human can) and stamps every write with agent_name
- * so the activity log shows "Claude Code (for <member>)".
+ * can do exactly what its human can). Attribution rides on the x-kriya-agent
+ * request header: Postgres triggers stamp it onto every write server-side, so
+ * the activity log shows "Claude Code (for <member>)" and this process never
+ * touches attribution columns directly.
  *
  * Env: SUPABASE_URL, SUPABASE_ANON_KEY, KRIYA_EMAIL, KRIYA_PASSWORD,
  *      KRIYA_AGENT_NAME (optional, default "Claude Code")
@@ -23,7 +25,9 @@ function env(name: string): string {
   return v;
 }
 
-const supabase: SupabaseClient = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"));
+const supabase: SupabaseClient = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
+  global: { headers: { "x-kriya-agent": AGENT } },
+});
 
 const STATUSES = ["backlog", "todo", "in_progress", "done", "cancelled"] as const;
 const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
@@ -57,6 +61,11 @@ async function memberByEmail(email: string) {
 
 function json(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
+}
+
+// PostgREST or() filters treat commas/parens as syntax; strip them from user input.
+function likePattern(search: string): string {
+  return `%${search.replace(/[,()]/g, " ").trim()}%`;
 }
 
 const server = new McpServer({ name: "kriya", version: "0.1.0" });
@@ -102,14 +111,17 @@ server.tool(
   async ({ project_key, status, priority, assignee_email, search, limit }) => {
     let q = supabase
       .from("issues")
-      .select("number, title, status, priority, due_date, agent_name, created_at, projects!inner(key), assignee:members!issues_assignee_id_fkey(display_name, email)")
+      .select("number, title, status, priority, due_date, created_by_agent, created_at, projects!inner(key), assignee:members!issues_assignee_id_fkey(display_name, email)")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (project_key) q = q.eq("projects.key", project_key.toUpperCase());
     if (status) q = q.eq("status", status);
     if (priority) q = q.eq("priority", priority);
     if (assignee_email) q = q.eq("assignee_id", (await memberByEmail(assignee_email)).user_id);
-    if (search) q = q.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+    if (search) {
+      const p = likePattern(search);
+      q = q.or(`title.ilike.${p},description.ilike.${p}`);
+    }
     const { data, error } = await q;
     if (error) fail(error.message);
     return json(
@@ -120,7 +132,7 @@ server.tool(
         priority: i.priority,
         assignee: i.assignee?.display_name ?? null,
         due_date: i.due_date,
-        created_by_agent: i.agent_name,
+        created_by_agent: i.created_by_agent,
       }))
     );
   }
@@ -132,15 +144,22 @@ server.tool(
   { project_key: z.string(), number: z.number().int() },
   async ({ project_key, number }) => {
     const { project, issue } = await issueRef(project_key, number);
-    const [{ data: comments }, { data: activity }] = await Promise.all([
+    const [{ data: comments }, { data: activity }, { data: labels }] = await Promise.all([
       supabase.from("comments")
         .select("body, agent_name, created_at, author:members!comments_author_id_fkey(display_name)")
         .eq("issue_id", issue.id).order("created_at"),
       supabase.from("activity")
         .select("action, old_value, new_value, agent_name, created_at, actor:members!activity_actor_id_fkey(display_name)")
         .eq("issue_id", issue.id).order("created_at"),
+      supabase.from("issue_labels").select("label:labels(name, color)").eq("issue_id", issue.id),
     ]);
-    return json({ id: `${project.key}-${issue.number}`, ...issue, comments, activity });
+    return json({
+      id: `${project.key}-${issue.number}`,
+      ...issue,
+      labels: (labels ?? []).map((l: any) => l.label?.name),
+      comments,
+      activity,
+    });
   }
 );
 
@@ -158,7 +177,6 @@ server.tool(
   },
   async ({ project_key, title, description, status, priority, assignee_email, due_date }) => {
     const project = await projectByKey(project_key);
-    const { data: me } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("issues")
       .insert({
@@ -169,8 +187,6 @@ server.tool(
         priority,
         due_date,
         assignee_id: assignee_email ? (await memberByEmail(assignee_email)).user_id : null,
-        created_by: me.user?.id,
-        agent_name: AGENT,
       })
       .select("number").single();
     if (error) fail(error.message);
@@ -193,7 +209,7 @@ server.tool(
   },
   async ({ project_key, number, assignee_email, ...fields }) => {
     const { project, issue } = await issueRef(project_key, number);
-    const patch: Record<string, unknown> = { ...fields, agent_name: AGENT };
+    const patch: Record<string, unknown> = { ...fields };
     if (assignee_email !== undefined)
       patch.assignee_id = assignee_email === null ? null : (await memberByEmail(assignee_email)).user_id;
     const { error } = await supabase.from("issues").update(patch).eq("id", issue.id);
@@ -208,12 +224,55 @@ server.tool(
   { project_key: z.string(), number: z.number().int(), body: z.string().min(1) },
   async ({ project_key, number, body }) => {
     const { project, issue } = await issueRef(project_key, number);
-    const { data: me } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("comments")
-      .insert({ issue_id: issue.id, body, author_id: me.user?.id, agent_name: AGENT });
+      .insert({ issue_id: issue.id, body });
     if (error) fail(error.message);
     return json({ commented: `${project.key}-${issue.number}` });
+  }
+);
+
+server.tool(
+  "list_labels",
+  "List a project's labels",
+  { project_key: z.string() },
+  async ({ project_key }) => {
+    const project = await projectByKey(project_key);
+    const { data, error } = await supabase
+      .from("labels").select("name, color").eq("project_id", project.id).order("name");
+    if (error) fail(error.message);
+    return json(data);
+  }
+);
+
+server.tool(
+  "set_issue_labels",
+  "Replace an issue's labels with the given set. Unknown labels are created in the project automatically.",
+  { project_key: z.string(), number: z.number().int(), labels: z.array(z.string().min(1).max(50)).max(20) },
+  async ({ project_key, number, labels }) => {
+    const { project, issue } = await issueRef(project_key, number);
+    const names = [...new Set(labels)];
+    if (names.length > 0) {
+      const { error: upsertErr } = await supabase
+        .from("labels")
+        .upsert(names.map((name) => ({ project_id: project.id, name })), {
+          onConflict: "project_id,name",
+          ignoreDuplicates: true,
+        });
+      if (upsertErr) fail(upsertErr.message);
+    }
+    const { data: rows, error: fetchErr } = await supabase
+      .from("labels").select("id, name").eq("project_id", project.id).in("name", names);
+    if (fetchErr) fail(fetchErr.message);
+    const { error: clearErr } = await supabase.from("issue_labels").delete().eq("issue_id", issue.id);
+    if (clearErr) fail(clearErr.message);
+    if ((rows ?? []).length > 0) {
+      const { error: linkErr } = await supabase
+        .from("issue_labels")
+        .insert(rows!.map((l) => ({ issue_id: issue.id, label_id: l.id })));
+      if (linkErr) fail(linkErr.message);
+    }
+    return json({ issue: `${project.key}-${issue.number}`, labels: (rows ?? []).map((l) => l.name) });
   }
 );
 
