@@ -80,7 +80,7 @@ const transport = new StdioClientTransport({
   command: "node",
   args: [new URL("../dist/index.js", import.meta.url).pathname],
   env: {
-    ...process.env,
+    ...Object.fromEntries(Object.entries(process.env).filter(([k]) => k !== "PORT")),
     SUPABASE_URL, SUPABASE_ANON_KEY,
     KRIYA_EMAIL, KRIYA_PASSWORD,
     KRIYA_AGENT_NAME: AGENT,

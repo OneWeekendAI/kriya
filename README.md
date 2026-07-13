@@ -22,6 +22,25 @@ cd backend/mcp-server
 npm install && npm run build
 ```
 
+### Remote MCP (recommended — one URL for the whole team)
+
+The same server speaks MCP's Streamable HTTP transport when `PORT` is set. Deploy it anywhere that runs containers (Cloud Run shown):
+
+```bash
+cd backend/mcp-server
+gcloud run deploy kriya-mcp --source . --region asia-south1 --allow-unauthenticated \
+  --set-env-vars "SUPABASE_URL=https://<project>.supabase.co,SUPABASE_ANON_KEY=<anon key>,KRIYA_EMAIL=<agent user email>,KRIYA_PASSWORD=<password>,KRIYA_AGENT_NAME=Claude,MCP_AUTH_TOKEN=<random secret>"
+```
+
+(`--allow-unauthenticated` exposes the URL; the server enforces its own `Authorization: Bearer <MCP_AUTH_TOKEN>` on every MCP request.) Then connect from Claude Code:
+
+```bash
+claude mcp add --transport http kriya https://<cloud-run-url>/mcp \
+  --header "Authorization: Bearer <MCP_AUTH_TOKEN>"
+```
+
+### Local MCP (stdio)
+
 Add to your MCP client config:
 
 ```json

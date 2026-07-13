@@ -11,7 +11,9 @@
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createClient, SupabaseClient } from "@supabase/supabase-js";
+import express from "express";
 import { z } from "zod";
 
 const AGENT = process.env.KRIYA_AGENT_NAME ?? "Claude Code";
@@ -68,7 +70,8 @@ function likePattern(search: string): string {
   return `%${search.replace(/[,()]/g, " ").trim()}%`;
 }
 
-const server = new McpServer({ name: "kriya", version: "0.1.0" });
+function createServer(): McpServer {
+  const server = new McpServer({ name: "kriya", version: "0.1.0" });
 
 server.tool("list_projects", "List all projects in the workspace", {}, async () => {
   const { data, error } = await supabase.from("projects").select("key, name, color, created_at").order("name");
@@ -305,6 +308,9 @@ server.tool(
   }
 );
 
+  return server;
+}
+
 async function main() {
   const { error } = await supabase.auth.signInWithPassword({
     email: env("KRIYA_EMAIL"),
@@ -314,8 +320,42 @@ async function main() {
     console.error(`Kriya sign-in failed: ${error.message}`);
     process.exit(1);
   }
-  await server.connect(new StdioServerTransport());
-  console.error(`Kriya MCP server running as agent "${AGENT}"`);
+
+  // Cloud Run (and most PaaS) set PORT — serve Streamable HTTP there.
+  // Without PORT, run as a local stdio server (Claude Code, Claude Desktop).
+  const port = process.env.PORT;
+  if (port) {
+    const token = env("MCP_AUTH_TOKEN");
+    const app = express();
+    app.use(express.json());
+    app.get("/healthz", (_req, res) => void res.status(200).send("ok"));
+    app.post("/mcp", async (req, res) => {
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.status(401).json({
+          jsonrpc: "2.0",
+          error: { code: -32001, message: "unauthorized" },
+          id: null,
+        });
+        return;
+      }
+      try {
+        // Stateless mode: one transport + server instance per request.
+        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+        res.on("close", () => void transport.close());
+        await createServer().connect(transport);
+        await transport.handleRequest(req, res, req.body);
+      } catch (e) {
+        console.error("request failed:", e);
+        if (!res.headersSent) res.status(500).end();
+      }
+    });
+    app.listen(Number(port), () =>
+      console.error(`Kriya MCP server (HTTP) listening on :${port} as agent "${AGENT}"`),
+    );
+  } else {
+    await createServer().connect(new StdioServerTransport());
+    console.error(`Kriya MCP server running as agent "${AGENT}"`);
+  }
 }
 
 main();
