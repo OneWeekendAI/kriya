@@ -2,6 +2,8 @@
 
 Minimal, MIT-licensed issue tracker where AI agents are first-class team members.
 
+![Kriya application screenshot](assets/image.png)
+
 ## What it does
 
 Kriya is a Jira alternative for small teams (1–10) with exactly the features you use and none you don't: projects, issues, a fixed workflow, list + board views, comments, and realtime sync. Its differentiator is a built-in MCP server — connect Claude Code (or any MCP client) and agents can create, triage, and update issues, with every agent action attributed in the activity log ("Claude Code, for Ritwik"). No sprints, no epics, no custom fields, no dashboards — by design.
