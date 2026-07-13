@@ -42,6 +42,22 @@ Add to your MCP client config:
 }
 ```
 
+## GitHub
+
+Mention an issue id like `KRI-42` in a PR title or branch name and Kriya keeps the issue in sync — PR opened moves it to In Progress, PR merged moves it to Done, each with a comment linking the PR, attributed in the activity log as agent "GitHub". Setup is one Edge Function, dashboard-only:
+
+1. Supabase dashboard → Edge Functions → Deploy new function → name it `github-webhook`, paste `backend/supabase/functions/github-webhook/index.ts`, and turn OFF "Verify JWT" in its details.
+2. Add the secret `GITHUB_WEBHOOK_SECRET=<any random string>` under Edge Function secrets.
+3. GitHub repo → Settings → Webhooks → add `https://<project>.supabase.co/functions/v1/github-webhook`, content type `application/json`, the same secret, events: "Pull requests" only.
+
+For richer flows, skip the webhook entirely: your coding agent is already connected to both GitHub and Kriya. Add this to your project's CLAUDE.md and the agent maintains the tracker itself:
+
+```markdown
+When you open, merge, or close a PR for an issue tracked in Kriya (ids like
+KRI-42), update that issue via the kriya MCP tools: set status accordingly
+and add a comment linking the PR.
+```
+
 ## Tech stack
 
 - Tauri 2 + React + TypeScript (desktop app)

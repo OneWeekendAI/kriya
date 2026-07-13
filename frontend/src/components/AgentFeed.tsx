@@ -27,11 +27,11 @@ export function AgentFeed({ members, projects }: { members: Member[]; projects: 
           <h3>{day}</h3>
           <ul>
             {dayItems.map((a) => {
-              const human = members.find((m) => m.user_id === a.actor_id)?.display_name ?? "someone";
+              const human = members.find((m) => m.user_id === a.actor_id)?.display_name;
               const key = projects.find((p) => p.id === a.issue.project_id)?.key ?? "?";
               return (
                 <li key={a.id}>
-                  <strong>{a.agent_name}</strong> <small>(for {human})</small>{" "}
+                  <strong>{a.agent_name}</strong> {human && <small>(for {human})</small>}{" "}
                   {a.action === "created"
                     ? `created ${key}-${a.issue.number}: ${a.issue.title}`
                     : `changed ${a.action} on ${key}-${a.issue.number}: ${a.old_value ?? "—"} → ${a.new_value ?? "—"}`}

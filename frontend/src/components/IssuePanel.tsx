@@ -4,12 +4,13 @@ import type { Activity, Comment, Issue, Member, Project } from "../lib/types";
 import { PRIORITIES, STATUSES } from "../lib/types";
 
 function Who({ actorId, agent, members }: { actorId: string | null; agent: string | null; members: Member[] }) {
-  const human = members.find((m) => m.user_id === actorId)?.display_name ?? "someone";
-  return agent ? (
-    <strong className="agent">🤖 {agent} <small>(for {human})</small></strong>
-  ) : (
-    <strong>{human}</strong>
-  );
+  const human = members.find((m) => m.user_id === actorId)?.display_name;
+  if (agent) {
+    return (
+      <strong className="agent">🤖 {agent}{human && <small> (for {human})</small>}</strong>
+    );
+  }
+  return <strong>{human ?? "someone"}</strong>;
 }
 
 export function IssuePanel({
