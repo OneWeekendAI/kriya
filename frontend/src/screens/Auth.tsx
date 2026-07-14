@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { clearConfig, supabase } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 
 export function Auth() {
   const [mode, setMode] = useState<"signin" | "signup" | "invite">("signin");
@@ -66,9 +66,6 @@ export function Auth() {
           Invited? Join with your email code
         </button>
       )}
-      <button className="link" onClick={() => { clearConfig(); location.reload(); }}>
-        Use a different Supabase project
-      </button>
     </main>
   );
 }

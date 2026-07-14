@@ -16,8 +16,9 @@ Kriya is a Jira alternative for small teams (1–10) with exactly the features y
 
 # 2. Desktop app
 cd frontend
+cp .env.example .env   # fill in your Supabase URL + anon key (Settings → API)
 npm install
-npm run tauri dev   # prompts for your Supabase URL + anon key on first run
+npm run tauri dev
 
 # 3. MCP server (connect Claude Code)
 cd backend/mcp-server
