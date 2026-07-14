@@ -2,7 +2,7 @@
 // Identity and agent attribution are handled by database triggers; this layer
 // deliberately never writes created_by / author_id / *_agent columns.
 import { supabase } from "./supabase";
-import type { Activity, Comment, Issue, IssuePriority, IssueStatus, Member, Project } from "./types";
+import type { Activity, AgentKey, Comment, Issue, IssuePriority, IssueStatus, Member, Project } from "./types";
 
 export async function listMembers(): Promise<Member[]> {
   const { data, error } = await supabase().from("members").select("*").order("display_name");
@@ -12,6 +12,43 @@ export async function listMembers(): Promise<Member[]> {
 
 export async function inviteMember(email: string): Promise<void> {
   const { error } = await supabase().from("invites").insert({ email: email.toLowerCase() });
+  if (error) throw error;
+}
+
+/**
+ * Invite a teammate with a real signup email (the `invite` Edge Function).
+ * Falls back to recording a plain invite (no email) when the function isn't
+ * deployed, so the flow still works on a bare-schema self-host.
+ */
+export async function inviteTeammate(email: string, name?: string): Promise<{ emailed: boolean }> {
+  const { data, error } = await supabase().functions.invoke("invite", { body: { email, name } });
+  if (error) {
+    await inviteMember(email);
+    return { emailed: false };
+  }
+  return { emailed: !!data?.emailed };
+}
+
+// --- Agent keys (Connect your agent) ---------------------------------------
+
+export async function listAgentKeys(): Promise<AgentKey[]> {
+  const { data, error } = await supabase()
+    .from("agent_keys")
+    .select("id, agent_name, key_prefix, created_at, last_used_at")
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
+/** Mints a key; the returned plaintext `key` is shown once and never stored. */
+export async function createAgentKey(agentName: string): Promise<{ id: string; agent_name: string; key: string }> {
+  const { data, error } = await supabase().rpc("create_agent_key", { agent_name: agentName });
+  if (error) throw error;
+  return data;
+}
+
+export async function revokeAgentKey(id: string): Promise<void> {
+  const { error } = await supabase().from("agent_keys").delete().eq("id", id);
   if (error) throw error;
 }
 

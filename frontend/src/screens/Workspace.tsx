@@ -6,6 +6,7 @@ import { supabase } from "../lib/supabase";
 import { Board } from "../components/Board";
 import { IssuePanel } from "../components/IssuePanel";
 import { AgentFeed } from "../components/AgentFeed";
+import { ConnectAgent } from "../components/ConnectAgent";
 
 export function Workspace({ session }: { session: Session }) {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -13,7 +14,7 @@ export function Workspace({ session }: { session: Session }) {
   const [current, setCurrent] = useState<Project | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selected, setSelected] = useState<Issue | null>(null);
-  const [view, setView] = useState<"board" | "agents">("board");
+  const [view, setView] = useState<"board" | "agents" | "connect">("board");
   const [notMember, setNotMember] = useState(false);
 
   const refresh = useCallback(async () => {
@@ -51,8 +52,14 @@ export function Workspace({ session }: { session: Session }) {
   }
 
   async function invite() {
-    const email = prompt("Teammate's email (they sign up after this):")?.trim();
-    if (email) await api.inviteMember(email);
+    const email = prompt("Teammate's email:")?.trim();
+    if (!email) return;
+    const { emailed } = await api.inviteTeammate(email);
+    alert(
+      emailed
+        ? `Invite email sent to ${email}. They set a password from the email (or with the 6-digit code on the sign-in screen).`
+        : `${email} is pre-authorized, but no email was sent (invite function not deployed). Ask them to sign up with that address.`
+    );
   }
 
   if (notMember) {
@@ -85,6 +92,9 @@ export function Workspace({ session }: { session: Session }) {
           <button className={view === "agents" ? "active" : ""} onClick={() => setView("agents")}>
             🤖 Agent activity
           </button>
+          <button className={view === "connect" ? "active" : ""} onClick={() => setView("connect")}>
+            🔌 Connect your agent
+          </button>
           <button onClick={invite}>Invite teammate</button>
           <button onClick={() => supabase().auth.signOut()}>Sign out</button>
         </nav>
@@ -93,6 +103,8 @@ export function Workspace({ session }: { session: Session }) {
       <main className="content">
         {view === "agents" ? (
           <AgentFeed members={members} projects={projects} />
+        ) : view === "connect" ? (
+          <ConnectAgent />
         ) : current ? (
           <Board project={current} issues={issues} onSelect={setSelected} onChanged={refreshIssues} />
         ) : (

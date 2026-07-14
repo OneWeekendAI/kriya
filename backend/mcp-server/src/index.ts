@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 /**
- * Kriya MCP server. Signs in as a real Kriya member (RLS applies — the agent
- * can do exactly what its human can). Attribution rides on the x-kriya-agent
- * request header: Postgres triggers stamp it onto every write server-side, so
- * the activity log shows "Claude Code (for <member>)" and this process never
- * touches attribution columns directly.
+ * Kriya MCP server. Attribution rides on the x-kriya-agent request header:
+ * Postgres triggers stamp it onto every write server-side, so the activity
+ * log shows "Claude Code (for <member>)" and this process never touches
+ * attribution columns directly.
  *
- * Env: SUPABASE_URL, SUPABASE_ANON_KEY, KRIYA_EMAIL, KRIYA_PASSWORD,
- *      KRIYA_AGENT_NAME (optional, default "Claude Code")
+ * Two ways to run:
+ *
+ *   stdio (local, single user) — signs in as a real Kriya member (RLS
+ *   applies; the agent can do exactly what its human can).
+ *   Env: SUPABASE_URL, SUPABASE_ANON_KEY, KRIYA_EMAIL, KRIYA_PASSWORD,
+ *        KRIYA_AGENT_NAME (optional, default "Claude Code")
+ *
+ *   HTTP (remote, whole team) — set PORT (Cloud Run does). Each member mints
+ *   personal agent keys in the app ("Connect your agent"); requests carry
+ *   `Authorization: Bearer kriya_...` and the server resolves the key to that
+ *   member, forwarding identity via the x-kriya-actor header (honored by the
+ *   database only on service-role requests, so clients can't spoof it).
+ *   Env: SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+ *   Optional legacy shared-token mode: MCP_AUTH_TOKEN + KRIYA_EMAIL/PASSWORD.
  */
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -27,9 +38,8 @@ function env(name: string): string {
   return v;
 }
 
-const supabase: SupabaseClient = createClient(env("SUPABASE_URL"), env("SUPABASE_ANON_KEY"), {
-  global: { headers: { "x-kriya-agent": AGENT } },
-});
+const SUPABASE_URL = env("SUPABASE_URL");
+const SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY");
 
 const STATUSES = ["backlog", "todo", "in_progress", "done", "cancelled"] as const;
 const PRIORITIES = ["none", "low", "medium", "high", "urgent"] as const;
@@ -41,26 +51,6 @@ function fail(msg: string): never {
   throw new Error(msg);
 }
 
-async function projectByKey(key: string) {
-  const { data, error } = await supabase.from("projects").select("*").eq("key", key.toUpperCase()).single();
-  if (error || !data) fail(`No project with key '${key}'`);
-  return data;
-}
-
-async function issueRef(projectKey: string, number: number) {
-  const project = await projectByKey(projectKey);
-  const { data, error } = await supabase
-    .from("issues").select("*").eq("project_id", project.id).eq("number", number).single();
-  if (error || !data) fail(`No issue ${projectKey.toUpperCase()}-${number}`);
-  return { project, issue: data };
-}
-
-async function memberByEmail(email: string) {
-  const { data, error } = await supabase.from("members").select("*").eq("email", email).single();
-  if (error || !data) fail(`No member with email '${email}'`);
-  return data;
-}
-
 function json(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data, null, 2) }] };
 }
@@ -70,8 +60,28 @@ function likePattern(search: string): string {
   return `%${search.replace(/[,()]/g, " ").trim()}%`;
 }
 
-function createServer(): McpServer {
+function createServer(supabase: SupabaseClient): McpServer {
   const server = new McpServer({ name: "kriya", version: "0.1.0" });
+
+  async function projectByKey(key: string) {
+    const { data, error } = await supabase.from("projects").select("*").eq("key", key.toUpperCase()).single();
+    if (error || !data) fail(`No project with key '${key}'`);
+    return data;
+  }
+
+  async function issueRef(projectKey: string, number: number) {
+    const project = await projectByKey(projectKey);
+    const { data, error } = await supabase
+      .from("issues").select("*").eq("project_id", project.id).eq("number", number).single();
+    if (error || !data) fail(`No issue ${projectKey.toUpperCase()}-${number}`);
+    return { project, issue: data };
+  }
+
+  async function memberByEmail(email: string) {
+    const { data, error } = await supabase.from("members").select("*").eq("email", email).single();
+    if (error || !data) fail(`No member with email '${email}'`);
+    return data;
+  }
 
 server.tool("list_projects", "List all projects in the workspace", {}, async () => {
   const { data, error } = await supabase.from("projects").select("key, name, color, created_at").order("name");
@@ -84,10 +94,9 @@ server.tool(
   "Create a new project. Key is a short uppercase code like PAY or WEB.",
   { key: z.string().regex(/^[A-Za-z][A-Za-z0-9]{1,7}$/), name: z.string().min(1), color: z.string().optional() },
   async ({ key, name, color }) => {
-    const { data: me } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("projects")
-      .insert({ key: key.toUpperCase(), name, color, created_by: me.user?.id })
+      .insert({ key: key.toUpperCase(), name, color })
       .select().single();
     if (error) fail(error.message);
     return json(data);
@@ -311,8 +320,12 @@ server.tool(
   return server;
 }
 
-async function main() {
-  const { error } = await supabase.auth.signInWithPassword({
+/** Anon-key client that signs in as a member (stdio + legacy shared mode). */
+async function signedInClient(): Promise<SupabaseClient> {
+  const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+    global: { headers: { "x-kriya-agent": AGENT } },
+  });
+  const { error } = await client.auth.signInWithPassword({
     email: env("KRIYA_EMAIL"),
     password: env("KRIYA_PASSWORD"),
   });
@@ -320,40 +333,98 @@ async function main() {
     console.error(`Kriya sign-in failed: ${error.message}`);
     process.exit(1);
   }
+  return client;
+}
 
+interface KeyIdentity {
+  user_id: string;
+  agent_name: string;
+  display_name: string;
+  email: string;
+}
+
+async function serveHttp(port: number) {
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const sharedToken = process.env.MCP_AUTH_TOKEN;
+  if (!serviceKey && !sharedToken) {
+    console.error("HTTP mode needs SUPABASE_SERVICE_ROLE_KEY (per-user agent keys) or MCP_AUTH_TOKEN (shared token)");
+    process.exit(1);
+  }
+
+  // Legacy shared-token mode: one signed-in identity for every request.
+  const sharedClient = sharedToken ? await signedInClient() : null;
+
+  // Agent-key mode: resolve `kriya_...` bearer keys to member identities via
+  // the service role; the database trusts x-kriya-actor only from us.
+  const admin = serviceKey
+    ? createClient(SUPABASE_URL, serviceKey, { auth: { persistSession: false } })
+    : null;
+  const keyCache = new Map<string, { identity: KeyIdentity; at: number }>();
+  const KEY_CACHE_TTL_MS = 60_000;
+
+  async function clientForKey(key: string): Promise<{ client: SupabaseClient; identity: KeyIdentity } | null> {
+    if (!admin || !serviceKey) return null;
+    const cached = keyCache.get(key);
+    let identity = cached && Date.now() - cached.at < KEY_CACHE_TTL_MS ? cached.identity : null;
+    if (!identity) {
+      const { data, error } = await admin.rpc("resolve_agent_key", { key });
+      if (error || !data) return null;
+      identity = data as KeyIdentity;
+      keyCache.set(key, { identity, at: Date.now() });
+    }
+    const client = createClient(SUPABASE_URL, serviceKey, {
+      auth: { persistSession: false },
+      global: { headers: { "x-kriya-agent": identity.agent_name, "x-kriya-actor": identity.user_id } },
+    });
+    return { client, identity };
+  }
+
+  const app = express();
+  app.use(express.json());
+  app.get("/healthz", (_req, res) => void res.status(200).send("ok"));
+  app.post("/mcp", async (req, res) => {
+    const bearer = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+    let db: SupabaseClient | null = null;
+    if (sharedClient && sharedToken && bearer === sharedToken) {
+      db = sharedClient;
+    } else if (bearer.startsWith("kriya_")) {
+      db = (await clientForKey(bearer))?.client ?? null;
+    }
+    if (!db) {
+      res.status(401).json({
+        jsonrpc: "2.0",
+        error: { code: -32001, message: "unauthorized" },
+        id: null,
+      });
+      return;
+    }
+    try {
+      // Stateless mode: one transport + server instance per request.
+      const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+      res.on("close", () => void transport.close());
+      await createServer(db).connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (e) {
+      console.error("request failed:", e);
+      if (!res.headersSent) res.status(500).end();
+    }
+  });
+  app.listen(port, () =>
+    console.error(
+      `Kriya MCP server (HTTP) listening on :${port} — ` +
+        `${admin ? "per-user agent keys" : ""}${admin && sharedClient ? " + " : ""}${sharedClient ? `shared token as "${AGENT}"` : ""}`,
+    ),
+  );
+}
+
+async function main() {
   // Cloud Run (and most PaaS) set PORT — serve Streamable HTTP there.
   // Without PORT, run as a local stdio server (Claude Code, Claude Desktop).
   const port = process.env.PORT;
   if (port) {
-    const token = env("MCP_AUTH_TOKEN");
-    const app = express();
-    app.use(express.json());
-    app.get("/healthz", (_req, res) => void res.status(200).send("ok"));
-    app.post("/mcp", async (req, res) => {
-      if (req.headers.authorization !== `Bearer ${token}`) {
-        res.status(401).json({
-          jsonrpc: "2.0",
-          error: { code: -32001, message: "unauthorized" },
-          id: null,
-        });
-        return;
-      }
-      try {
-        // Stateless mode: one transport + server instance per request.
-        const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-        res.on("close", () => void transport.close());
-        await createServer().connect(transport);
-        await transport.handleRequest(req, res, req.body);
-      } catch (e) {
-        console.error("request failed:", e);
-        if (!res.headersSent) res.status(500).end();
-      }
-    });
-    app.listen(Number(port), () =>
-      console.error(`Kriya MCP server (HTTP) listening on :${port} as agent "${AGENT}"`),
-    );
+    await serveHttp(Number(port));
   } else {
-    await createServer().connect(new StdioServerTransport());
+    await createServer(await signedInClient()).connect(new StdioServerTransport());
     console.error(`Kriya MCP server running as agent "${AGENT}"`);
   }
 }

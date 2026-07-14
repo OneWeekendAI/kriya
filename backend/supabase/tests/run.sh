@@ -21,4 +21,6 @@ run_sql() {
 
 run_sql 00_stub.sql
 run_sql ../migrations/0001_init.sql
+run_sql ../migrations/0002_team_onboarding.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 10_tests.sql
+docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 20_team_tests.sql

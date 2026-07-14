@@ -12,7 +12,7 @@ Kriya is a Jira alternative for small teams (1–10) with exactly the features y
 
 ```bash
 # 1. Backend: create a free Supabase project, then apply the schema
-#    (paste backend/supabase/migrations/0001_init.sql into the SQL editor)
+#    (paste backend/supabase/migrations/*.sql into the SQL editor, in order)
 
 # 2. Desktop app
 cd frontend
@@ -26,20 +26,23 @@ npm install && npm run build
 
 ### Remote MCP (recommended — one URL for the whole team)
 
-The same server speaks MCP's Streamable HTTP transport when `PORT` is set. Deploy it anywhere that runs containers (Cloud Run shown):
+The same server speaks MCP's Streamable HTTP transport when `PORT` is set. Deploy it once, anywhere that runs containers (Cloud Run shown):
 
 ```bash
 cd backend/mcp-server
 gcloud run deploy kriya-mcp --source . --region asia-south1 --allow-unauthenticated \
-  --set-env-vars "SUPABASE_URL=https://<project>.supabase.co,SUPABASE_ANON_KEY=<anon key>,KRIYA_EMAIL=<agent user email>,KRIYA_PASSWORD=<password>,KRIYA_AGENT_NAME=Claude,MCP_AUTH_TOKEN=<random secret>"
+  --set-env-vars "SUPABASE_URL=https://<project>.supabase.co,SUPABASE_ANON_KEY=<anon key>" \
+  --set-secrets "SUPABASE_SERVICE_ROLE_KEY=<your secret ref>"
 ```
 
-(`--allow-unauthenticated` exposes the URL; the server enforces its own `Authorization: Bearer <MCP_AUTH_TOKEN>` on every MCP request.) Then connect from Claude Code:
+(`--allow-unauthenticated` exposes the URL; the server authenticates every MCP request itself.) Each teammate then opens **Connect your agent** in the app, mints a personal agent key, and connects:
 
 ```bash
 claude mcp add --transport http kriya https://<cloud-run-url>/mcp \
-  --header "Authorization: Bearer <MCP_AUTH_TOKEN>"
+  --header "Authorization: Bearer kriya_<personal key>"
 ```
+
+Keys act as the member who minted them — the activity log shows "Claude Code (for Priya)" no matter whose agent did what — and can be revoked in the app at any time. (A shared-token mode also exists: set `MCP_AUTH_TOKEN` + `KRIYA_EMAIL`/`KRIYA_PASSWORD` and everyone shares one identity.)
 
 ### Local MCP (stdio)
 
@@ -62,6 +65,16 @@ Add to your MCP client config:
   }
 }
 ```
+
+## Invite your team
+
+"Invite teammate" in the app sends a real signup email. One-time setup, dashboard only:
+
+1. Supabase dashboard → Edge Functions → Deploy new function → name it `invite`, paste `backend/supabase/functions/invite/index.ts` (leave "Verify JWT" ON).
+2. Auth → SMTP Settings → enable Custom SMTP so emails actually deliver. A free Gmail works: create a [Google app password](https://myaccount.google.com/apppasswords), then use `smtp.gmail.com`, port `465`, your Gmail as username, the app password as password (~500 emails/day).
+3. Auth → Email Templates → "Invite user" → add the 6-digit code `{{ .Token }}` to the body. Desktop-app invitees join with that code ("Invited? Join with your email code" on the sign-in screen) instead of a browser link.
+
+Skipping step 1 still works — invites are then just pre-authorizations and teammates sign up manually with the invited email.
 
 ## GitHub
 

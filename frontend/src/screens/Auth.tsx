@@ -2,16 +2,25 @@ import { useState } from "react";
 import { clearConfig, supabase } from "../lib/supabase";
 
 export function Auth() {
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "invite">("signin");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     const auth = supabase().auth;
+    if (mode === "invite") {
+      // Redeem the 6-digit code from the invite email, then set a password.
+      const { error: otpErr } = await auth.verifyOtp({ email, token: code.trim(), type: "invite" });
+      if (otpErr) return setError(otpErr.message);
+      const { error: pwErr } = await auth.updateUser({ password });
+      if (pwErr) return setError(pwErr.message);
+      return;
+    }
     const { error } =
       mode === "signin"
         ? await auth.signInWithPassword({ email, password })
@@ -27,13 +36,36 @@ export function Auth() {
           <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
         )}
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
-        <button type="submit">{mode === "signin" ? "Sign in" : "Sign up"}</button>
+        {mode === "invite" && (
+          <input
+            placeholder="6-digit code from your invite email"
+            value={code}
+            onChange={(e) => setCode(e.target.value)}
+            required
+            minLength={6}
+          />
+        )}
+        <input
+          type="password"
+          placeholder={mode === "invite" ? "Choose a password" : "Password"}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+          minLength={8}
+        />
+        <button type="submit">
+          {mode === "signin" ? "Sign in" : mode === "signup" ? "Sign up" : "Join workspace"}
+        </button>
         {error && <p className="error">{error}</p>}
       </form>
       <button className="link" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
         {mode === "signin" ? "New here? Sign up" : "Have an account? Sign in"}
       </button>
+      {mode !== "invite" && (
+        <button className="link" onClick={() => setMode("invite")}>
+          Invited? Join with your email code
+        </button>
+      )}
       <button className="link" onClick={() => { clearConfig(); location.reload(); }}>
         Use a different Supabase project
       </button>

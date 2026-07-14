@@ -42,6 +42,14 @@ export interface Comment {
   created_at: string;
 }
 
+export interface AgentKey {
+  id: string;
+  agent_name: string;
+  key_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+}
+
 export interface Activity {
   id: number;
   issue_id: string;
