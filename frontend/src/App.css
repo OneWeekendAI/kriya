@@ -57,3 +57,16 @@ time { display: block; font-size: 0.75rem; color: #888; }
 
 .agent-feed ul { list-style: none; padding: 0; }
 .agent-feed li { padding: 6px 0; border-top: 1px solid #eee; }
+
+.modal-backdrop {
+  position: fixed; inset: 0; background: rgba(0, 0, 0, 0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+.modal { background: white; border-radius: 8px; padding: 20px; min-width: 320px; }
+.modal h3 { margin: 0 0 12px; }
+.modal form { display: flex; flex-direction: column; gap: 8px; }
+.modal .row { display: flex; gap: 8px; }
+.notice {
+  padding: 8px 12px; margin-bottom: 12px; background: #eef2ff;
+  border: 1px solid #c7d2fe; border-radius: 6px;
+}

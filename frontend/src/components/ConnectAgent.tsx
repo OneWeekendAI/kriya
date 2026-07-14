@@ -14,6 +14,7 @@ export function ConnectAgent() {
   const [agentName, setAgentName] = useState("Claude Code");
   const [minted, setMinted] = useState<{ agent_name: string; key: string } | null>(null);
   const [mcpUrl, setMcpUrl] = useState(localStorage.getItem(MCP_URL_KEY) ?? "");
+  const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = () => api.listAgentKeys().then(setKeys).catch((e) => setError(e.message));
@@ -33,8 +34,9 @@ export function ConnectAgent() {
     }
   }
 
+  // Two-click confirm — window.confirm() is a no-op in Tauri's webview.
   async function revoke(id: string) {
-    if (!confirm("Revoke this key? Agents using it stop working immediately.")) return;
+    setConfirmRevoke(null);
     await api.revokeAgentKey(id);
     if (minted) setMinted(null);
     await refresh();
@@ -86,9 +88,15 @@ export function ConnectAgent() {
             <code>{k.key_prefix}…</code> {k.agent_name} · created{" "}
             {new Date(k.created_at).toLocaleDateString()} ·{" "}
             {k.last_used_at ? `last used ${new Date(k.last_used_at).toLocaleString()}` : "never used"}
-            <button className="link" onClick={() => revoke(k.id)}>
-              revoke
-            </button>
+            {confirmRevoke === k.id ? (
+              <>
+                <span> — agents using it stop working immediately.</span>
+                <button className="link" onClick={() => revoke(k.id)}>confirm revoke</button>
+                <button className="link" onClick={() => setConfirmRevoke(null)}>keep</button>
+              </>
+            ) : (
+              <button className="link" onClick={() => setConfirmRevoke(k.id)}>revoke</button>
+            )}
           </li>
         ))}
         {keys.length === 0 && <li>No keys yet.</li>}
