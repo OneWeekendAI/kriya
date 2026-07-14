@@ -11,7 +11,8 @@ export async function listMembers(): Promise<Member[]> {
 }
 
 export async function inviteMember(email: string): Promise<void> {
-  const { error } = await supabase().from("invites").insert({ email: email.toLowerCase() });
+  // Upsert: re-inviting the same address is a no-op, not an error.
+  const { error } = await supabase().from("invites").upsert({ email: email.toLowerCase() });
   if (error) throw error;
 }
 

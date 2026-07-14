@@ -15,9 +15,16 @@ Deno.test("parseInvite rejects garbage", () => {
   assertEquals(parseInvite({ email: ["bob@x.com"] }), null);
 });
 
+Deno.test("handler answers CORS preflight", async () => {
+  const res = await handler(new Request("http://x/invite", { method: "OPTIONS" }));
+  assertEquals(res.status, 204);
+  assertEquals(res.headers.get("access-control-allow-origin"), "*");
+});
+
 Deno.test("handler rejects non-POST", async () => {
   const res = await handler(new Request("http://x/invite", { method: "GET" }));
   assertEquals(res.status, 405);
+  assertEquals(res.headers.get("access-control-allow-origin"), "*");
 });
 
 Deno.test("handler rejects an invalid body before touching auth", async () => {

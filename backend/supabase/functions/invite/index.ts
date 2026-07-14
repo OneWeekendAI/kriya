@@ -26,10 +26,18 @@ export function parseInvite(body: unknown): { email: string; name?: string } | n
   return { email: email.toLowerCase(), name: name || undefined };
 }
 
+// The app calls this from a webview, so the browser sends a CORS preflight.
+const CORS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const json = (status: number, data: unknown) =>
-  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json" } });
+  new Response(JSON.stringify(data), { status, headers: { "content-type": "application/json", ...CORS } });
 
 export async function handler(req: Request): Promise<Response> {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
   if (req.method !== "POST") return json(405, { error: "method not allowed" });
 
   let invite: ReturnType<typeof parseInvite>;
