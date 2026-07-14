@@ -17,12 +17,21 @@ export async function inviteMember(email: string): Promise<void> {
 
 /**
  * Invite a teammate with a real signup email (the `invite` Edge Function).
- * Falls back to recording a plain invite (no email) when the function isn't
- * deployed, so the flow still works on a bare-schema self-host.
+ * Falls back to recording a plain invite (no email) only when the function
+ * isn't deployed (404), so the flow still works on a bare-schema self-host.
+ * Any other function error (SMTP, auth, ...) is surfaced to the caller.
  */
 export async function inviteTeammate(email: string, name?: string): Promise<{ emailed: boolean }> {
   const { data, error } = await supabase().functions.invoke("invite", { body: { email, name } });
   if (error) {
+    const resp = (error as { context?: Response }).context;
+    if (resp instanceof Response && resp.status !== 404) {
+      let detail = "";
+      try {
+        detail = (await resp.json())?.error ?? "";
+      } catch { /* body wasn't JSON */ }
+      throw new Error(detail || `invite failed (HTTP ${resp.status})`);
+    }
     await inviteMember(email);
     return { emailed: false };
   }

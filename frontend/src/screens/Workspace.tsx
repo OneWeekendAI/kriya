@@ -54,12 +54,16 @@ export function Workspace({ session }: { session: Session }) {
   async function invite() {
     const email = prompt("Teammate's email:")?.trim();
     if (!email) return;
-    const { emailed } = await api.inviteTeammate(email);
-    alert(
-      emailed
-        ? `Invite email sent to ${email}. They set a password from the email (or with the 6-digit code on the sign-in screen).`
-        : `${email} is pre-authorized, but no email was sent (invite function not deployed). Ask them to sign up with that address.`
-    );
+    try {
+      const { emailed } = await api.inviteTeammate(email);
+      alert(
+        emailed
+          ? `Invite email sent to ${email}. They set a password from the email (or with the 6-digit code on the sign-in screen).`
+          : `${email} is pre-authorized, but no email was sent (invite function not deployed). Ask them to sign up with that address.`
+      );
+    } catch (e) {
+      alert(`Invite failed: ${(e as Error).message}`);
+    }
   }
 
   if (notMember) {
