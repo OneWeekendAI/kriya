@@ -95,7 +95,17 @@ export async function handler(req: Request): Promise<Response> {
       await admin.from("invites").delete().eq("email", invite.email);
       return json(200, { ok: true, emailed: false, note: "existing account enrolled directly" });
     }
-    return json(502, { error: `invite email failed: ${mailErr.message}` });
+    // Surface everything GoTrue gives us — SMTP failures often have empty
+    // messages here, with the real error only in the project's Auth logs.
+    const detail = [
+      mailErr.message,
+      (mailErr as { code?: string }).code,
+      (mailErr as { status?: number }).status && `HTTP ${(mailErr as { status?: number }).status}`,
+    ].filter((x) => x && x !== "{}").join(", ");
+    console.error("inviteUserByEmail failed:", JSON.stringify(mailErr), detail);
+    return json(502, {
+      error: `invite email failed${detail ? `: ${detail}` : ""} — check Auth logs and SMTP settings (Authentication → Emails → SMTP)`,
+    });
   }
 
   return json(200, { ok: true, emailed: true });
