@@ -7,6 +7,7 @@ import { Board } from "../components/Board";
 import { IssuePanel } from "../components/IssuePanel";
 import { AgentFeed } from "../components/AgentFeed";
 import { ConnectAgent } from "../components/ConnectAgent";
+import { Team } from "../components/Team";
 
 interface Field {
   name: string;
@@ -75,7 +76,7 @@ export function Workspace({ session }: { session: Session }) {
   const [current, setCurrent] = useState<Project | null>(null);
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selected, setSelected] = useState<Issue | null>(null);
-  const [view, setView] = useState<"board" | "agents" | "connect">("board");
+  const [view, setView] = useState<"board" | "agents" | "connect" | "team">("board");
   const [dialog, setDialog] = useState<null | "project" | "invite">(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [notMember, setNotMember] = useState(false);
@@ -139,6 +140,9 @@ export function Workspace({ session }: { session: Session }) {
           <button className={view === "connect" ? "active" : ""} onClick={() => setView("connect")}>
             🔌 Connect your agent
           </button>
+          <button className={view === "team" ? "active" : ""} onClick={() => setView("team")}>
+            👥 Team
+          </button>
           <button onClick={() => setDialog("invite")}>Invite teammate</button>
           <button onClick={() => supabase().auth.signOut()}>Sign out</button>
         </nav>
@@ -155,6 +159,8 @@ export function Workspace({ session }: { session: Session }) {
           <AgentFeed members={members} projects={projects} />
         ) : view === "connect" ? (
           <ConnectAgent />
+        ) : view === "team" ? (
+          <Team members={members} currentUserId={session.user.id} onInvite={() => setDialog("invite")} />
         ) : current ? (
           <Board project={current} issues={issues} onSelect={setSelected} onChanged={refreshIssues} />
         ) : (
@@ -204,7 +210,7 @@ export function Workspace({ session }: { session: Session }) {
             const { emailed } = await api.inviteTeammate(email, v.name?.trim() || undefined);
             setNotice(
               emailed
-                ? `Invite email sent to ${email}. They join with the 6-digit code from the email (or the emailed link on web).`
+                ? `Invite email sent to ${email}. They join with the one-time code from the email (or the emailed link on web).`
                 : `${email} is pre-authorized, but no email was sent (invite function not deployed). Ask them to sign up with that address.`
             );
             setDialog(null);

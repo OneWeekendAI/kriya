@@ -16,6 +16,14 @@ export async function inviteMember(email: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Invites that haven't been redeemed yet (consumed on signup by the DB). */
+export async function listPendingInvites(): Promise<{ email: string; created_at: string }[]> {
+  const { data, error } = await supabase()
+    .from("invites").select("email, created_at").order("created_at", { ascending: false });
+  if (error) throw error;
+  return data;
+}
+
 /**
  * Invite a teammate with a real signup email (the `invite` Edge Function).
  * Falls back to recording a plain invite (no email) only when the function

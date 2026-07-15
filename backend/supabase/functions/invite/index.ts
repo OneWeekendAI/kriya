@@ -11,7 +11,7 @@
 //   2. (Recommended) Auth → SMTP Settings → enable Custom SMTP with a Gmail
 //      app password (smtp.gmail.com:465) so invite emails actually deliver
 //      beyond Supabase's tiny built-in quota (~2/hour).
-//   3. Desktop-app invitees redeem a 6-digit code instead of a link: add
+//   3. Desktop-app invitees redeem a one-time code instead of a link: add
 //      {{ .Token }} to the "Invite user" email template (Auth → Email
 //      Templates) so the code appears in the email.
 import { createClient } from "npm:@supabase/supabase-js@2";

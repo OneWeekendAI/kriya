@@ -73,7 +73,7 @@ Add to your MCP client config:
 
 1. Supabase dashboard → Edge Functions → Deploy new function → name it `invite`, paste `backend/supabase/functions/invite/index.ts` (leave "Verify JWT" ON).
 2. Auth → SMTP Settings → enable Custom SMTP so emails actually deliver. A free Gmail works: create a [Google app password](https://myaccount.google.com/apppasswords), then use `smtp.gmail.com`, port `465`, your Gmail as username, the app password as password (~500 emails/day).
-3. Auth → Email Templates → "Invite user" → add the 6-digit code `{{ .Token }}` to the body. Desktop-app invitees join with that code ("Invited? Join with your email code" on the sign-in screen) instead of a browser link.
+3. Auth → Email Templates → "Invite user" → add the one-time code `{{ .Token }}` to the body. Desktop-app invitees join with that code ("Invited? Join with your email code" on the sign-in screen) instead of a browser link.
 
 Skipping step 1 still works — invites are then just pre-authorizations and teammates sign up manually with the invited email.
 

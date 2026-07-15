@@ -14,7 +14,7 @@ export function Auth() {
     setError(null);
     const auth = supabase().auth;
     if (mode === "invite") {
-      // Redeem the 6-digit code from the invite email, then set a password.
+      // Redeem the one-time code from the invite email, then set a password.
       const { error: otpErr } = await auth.verifyOtp({ email, token: code.trim(), type: "invite" });
       if (otpErr) return setError(otpErr.message);
       const { error: pwErr } = await auth.updateUser({ password });
@@ -38,7 +38,7 @@ export function Auth() {
         <input type="email" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
         {mode === "invite" && (
           <input
-            placeholder="6-digit code from your invite email"
+            placeholder="Code from your invite email"
             value={code}
             onChange={(e) => setCode(e.target.value)}
             required
