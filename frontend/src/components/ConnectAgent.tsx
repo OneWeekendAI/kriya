@@ -13,7 +13,9 @@ export function ConnectAgent() {
   const [keys, setKeys] = useState<AgentKey[]>([]);
   const [agentName, setAgentName] = useState("Claude Code");
   const [minted, setMinted] = useState<{ agent_name: string; key: string } | null>(null);
-  const [mcpUrl, setMcpUrl] = useState(localStorage.getItem(MCP_URL_KEY) ?? "");
+  const [mcpUrl, setMcpUrl] = useState(
+    localStorage.getItem(MCP_URL_KEY) ?? import.meta.env.VITE_KRIYA_MCP_URL ?? "",
+  );
   const [confirmRevoke, setConfirmRevoke] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 

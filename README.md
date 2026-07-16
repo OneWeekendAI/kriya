@@ -45,6 +45,8 @@ claude mcp add --transport http kriya https://<cloud-run-url>/mcp \
 
 Keys act as the member who minted them — the activity log shows "Claude Code (for Priya)" no matter whose agent did what — and can be revoked in the app at any time. (A shared-token mode also exists: set `MCP_AUTH_TOKEN` + `KRIYA_EMAIL`/`KRIYA_PASSWORD` and everyone shares one identity.)
 
+Tip: set `VITE_KRIYA_MCP_URL=https://<cloud-run-url>/mcp` in `frontend/.env` and the Connect-your-agent screen comes prefilled with your team's URL.
+
 ### Local MCP (stdio)
 
 Add to your MCP client config:

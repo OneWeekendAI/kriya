@@ -51,8 +51,10 @@ create policy agent_keys_delete_own on agent_keys for delete using (user_id = au
 
 -- Mint a key for the signed-in member. The plaintext key is returned exactly
 -- once; only its hash is stored.
+-- search_path includes extensions: hosted Supabase installs pgcrypto there,
+-- local/docker installs it in public.
 create or replace function create_agent_key(agent_name text) returns json
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare
   plain text;
   new_id uuid;
@@ -71,7 +73,7 @@ end $$;
 -- Resolve a plaintext key to the member it belongs to. Callable ONLY with the
 -- service-role key (the MCP server); returns null for unknown/revoked keys.
 create or replace function resolve_agent_key(key text) returns json
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, extensions as $$
 declare
   r record;
 begin
