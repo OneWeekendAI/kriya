@@ -1,0 +1,35 @@
+name: Deploy MCP server to Cloud Run
+
+# Manual trigger only — run it from the Actions tab on the `deploy` branch.
+on:
+  workflow_dispatch:
+
+concurrency: deploy-mcp
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Write env.yaml from GitHub secrets
+        working-directory: backend/mcp-server
+        run: |
+          cat > env.yaml <<EOF
+          SUPABASE_URL: "${{ secrets.SUPABASE_URL }}"
+          SUPABASE_ANON_KEY: "${{ secrets.SUPABASE_ANON_KEY }}"
+          SUPABASE_SERVICE_ROLE_KEY: "${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}"
+          EOF
+
+      - name: Deploy
+        working-directory: backend/mcp-server
+        env:
+          GCP_PROJECT: instilplayv1
+          GCP_REGION: asia-east1
+        run: ./deploy.sh

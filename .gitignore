@@ -6,3 +6,5 @@ target/
 *.local
 .DS_Store
 frontend/src-tauri/gen/
+env.yaml
+!env.yaml.example
