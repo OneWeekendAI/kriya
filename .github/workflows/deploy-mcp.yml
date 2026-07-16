@@ -32,4 +32,11 @@ jobs:
         env:
           GCP_PROJECT: instilplayv1
           GCP_REGION: asia-east1
-        run: ./deploy.sh
+        # Repo is public, so scrub any *.run.app URLs (revision + stable) from the log.
+        run: |
+          set -o pipefail
+          ./deploy.sh > deploy.log 2>&1 || { sed -E 's#https://[a-zA-Z0-9.-]+\.run\.app#https://***.run.app#g' deploy.log; exit 1; }
+          grep -oE 'https://[a-zA-Z0-9.-]+\.run\.app' deploy.log | sort -u | while read -r u; do
+            echo "::add-mask::$u"
+          done
+          sed -E 's#https://[a-zA-Z0-9.-]+\.run\.app#https://***.run.app#g' deploy.log
