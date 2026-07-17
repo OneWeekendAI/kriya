@@ -16,6 +16,20 @@ export async function inviteMember(email: string): Promise<void> {
   if (error) throw error;
 }
 
+/** Remove a teammate. The database forbids removing yourself. */
+export async function removeMember(userId: string): Promise<void> {
+  const { error, count } = await supabase()
+    .from("members").delete({ count: "exact" }).eq("user_id", userId);
+  if (error) throw error;
+  if (!count) throw new Error("Member could not be removed (you can't remove yourself).");
+}
+
+/** Withdraw an invite that hasn't been redeemed yet. */
+export async function revokeInvite(email: string): Promise<void> {
+  const { error } = await supabase().from("invites").delete().eq("email", email.toLowerCase());
+  if (error) throw error;
+}
+
 /** Invites that haven't been redeemed yet (consumed on signup by the DB). */
 export async function listPendingInvites(): Promise<{ email: string; created_at: string }[]> {
   const { data, error } = await supabase()
