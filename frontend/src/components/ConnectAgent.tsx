@@ -53,22 +53,21 @@ export function ConnectAgent() {
   const key = minted?.key ?? "kriya_<your key>";
 
   return (
-    <div className="connect-agent">
-      <h2>Connect your agent</h2>
+    <div className="page">
       <p>
         Mint a personal key for each agent you use. Keys act as <em>you</em> — every action shows
-        up as "{minted?.agent_name ?? "Claude Code"} (for you)" in the activity log. The key is
+        up as "{minted?.agent_name ?? "Claude Code"} (for you)" in the ledger. The key is
         shown once; revoke it here any time.
       </p>
 
-      <form onSubmit={mint} className="row">
+      <form onSubmit={mint} className="row" style={{ marginTop: 14 }}>
         <input
           value={agentName}
           onChange={(e) => setAgentName(e.target.value)}
-          placeholder="Agent name (shown in activity)"
+          placeholder="Agent name (shown in the ledger)"
           maxLength={50}
         />
-        <button type="submit">Create key</button>
+        <button type="submit" className="btn-primary">Create key</button>
       </form>
       {error && <p className="error">{error}</p>}
 
@@ -84,47 +83,63 @@ export function ConnectAgent() {
         </div>
       )}
 
-      <ul className="key-list">
-        {keys.map((k) => (
-          <li key={k.id}>
-            <code>{k.key_prefix}…</code> {k.agent_name} · created{" "}
-            {new Date(k.created_at).toLocaleDateString()} ·{" "}
-            {k.last_used_at ? `last used ${new Date(k.last_used_at).toLocaleString()}` : "never used"}
-            {confirmRevoke === k.id ? (
-              <>
-                <span> — agents using it stop working immediately.</span>
-                <button className="link" onClick={() => revoke(k.id)}>confirm revoke</button>
-                <button className="link" onClick={() => setConfirmRevoke(null)}>keep</button>
-              </>
-            ) : (
-              <button className="link" onClick={() => setConfirmRevoke(k.id)}>revoke</button>
-            )}
-          </li>
-        ))}
-        {keys.length === 0 && <li>No keys yet.</li>}
-      </ul>
+      <section>
+        <span className="overline">Your keys</span>
+        <ul className="ruled-list">
+          {keys.map((k) => (
+            <li key={k.id}>
+              <span className="grow">
+                <code className="mono">{k.key_prefix}…</code> {k.agent_name}
+                <span className="muted">
+                  {" "}· created {new Date(k.created_at).toLocaleDateString()} ·{" "}
+                  {k.last_used_at ? `last used ${new Date(k.last_used_at).toLocaleString()}` : "never used"}
+                </span>
+                {confirmRevoke === k.id && (
+                  <span className="muted"> — agents using it stop working immediately.</span>
+                )}
+              </span>
+              {confirmRevoke === k.id ? (
+                <>
+                  <button className="link" onClick={() => revoke(k.id)}>confirm revoke</button>
+                  <button className="link" onClick={() => setConfirmRevoke(null)}>keep</button>
+                </>
+              ) : (
+                <button className="link" onClick={() => setConfirmRevoke(k.id)}>revoke</button>
+              )}
+            </li>
+          ))}
+          {keys.length === 0 && <li className="muted">No keys yet.</li>}
+        </ul>
+      </section>
 
-      <h3>Team MCP server</h3>
-      <p>Your team's deployed Kriya MCP URL (ask whoever deployed it):</p>
-      <input
-        value={mcpUrl}
-        onChange={(e) => saveMcpUrl(e.target.value)}
-        placeholder="https://kriya-mcp-xyz.a.run.app"
-      />
+      <section>
+        <span className="overline">Team MCP server</span>
+        <p>Your team's deployed Kriya MCP URL (ask whoever deployed it):</p>
+        <input
+          style={{ width: "100%" }}
+          value={mcpUrl}
+          onChange={(e) => saveMcpUrl(e.target.value)}
+          placeholder="https://kriya-mcp-xyz.a.run.app"
+        />
+      </section>
 
-      <h3>Connect Claude Code</h3>
-      <pre>
-        <code>{`claude mcp add --transport http kriya ${url}/mcp \\\n  --header "Authorization: Bearer ${key}"`}</code>
-      </pre>
+      <section>
+        <span className="overline">Connect Claude Code</span>
+        <pre className="snippet">
+          <code>{`claude mcp add --transport http kriya ${url}/mcp \\\n  --header "Authorization: Bearer ${key}"`}</code>
+        </pre>
+      </section>
 
-      <h3>Any other MCP client</h3>
-      <pre>
-        <code>{JSON.stringify(
-          { url: `${url}/mcp`, headers: { Authorization: `Bearer ${key}` } },
-          null,
-          2
-        )}</code>
-      </pre>
+      <section>
+        <span className="overline">Any other MCP client</span>
+        <pre className="snippet">
+          <code>{JSON.stringify(
+            { url: `${url}/mcp`, headers: { Authorization: `Bearer ${key}` } },
+            null,
+            2
+          )}</code>
+        </pre>
+      </section>
     </div>
   );
 }

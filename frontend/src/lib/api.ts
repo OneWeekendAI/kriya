@@ -158,9 +158,12 @@ export async function listAgentActivity(limit = 100): Promise<(Activity & { issu
 }
 
 /** Subscribe to live changes on the tables that drive the UI. Returns unsubscribe. */
+// Channel topics must be unique per subscriber: reusing a topic returns the
+// already-subscribed channel, and adding callbacks to it throws.
+let liveSeq = 0;
 export function onWorkspaceChange(callback: () => void): () => void {
   const channel = supabase()
-    .channel("kriya-live")
+    .channel(`kriya-live-${++liveSeq}`)
     .on("postgres_changes", { event: "*", schema: "public", table: "issues" }, callback)
     .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, callback)
     .on("postgres_changes", { event: "*", schema: "public", table: "activity" }, callback)

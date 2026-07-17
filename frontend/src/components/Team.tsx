@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import * as api from "../lib/api";
 import type { Member } from "../lib/types";
+import { initial } from "./Entry";
 
 /** Everyone in the workspace, plus invites that haven't been redeemed yet. */
 export function Team({ members, currentUserId, onInvite, onRemoved }: {
@@ -46,19 +47,20 @@ export function Team({ members, currentUserId, onInvite, onRemoved }: {
   }
 
   return (
-    <div className="team">
-      <h2>Team</h2>
+    <div className="page">
       {error && <p className="error">{error}</p>}
-      <ul className="member-list">
+      <ul className="ruled-list">
         {members.map((m) => (
           <li key={m.user_id}>
-            <strong>{m.display_name}</strong>
-            {m.user_id === currentUserId && " (you)"}
-            <span className="muted"> — {m.email}</span>
+            <span className="av av--lg">{initial(m.display_name)}</span>
+            <span className="grow">
+              <strong>{m.display_name}</strong>
+              {m.user_id === currentUserId && <span className="muted"> (you)</span>}
+              <span className="muted"> · {m.email}</span>
+            </span>
             {m.user_id !== currentUserId && (
               confirming === m.user_id ? (
                 <>
-                  {" "}
                   <button className="link" disabled={busy} onClick={() => remove(m.user_id)}>
                     {busy ? "Removing…" : `Yes, remove ${m.display_name}`}
                   </button>
@@ -67,12 +69,9 @@ export function Team({ members, currentUserId, onInvite, onRemoved }: {
                   </button>
                 </>
               ) : (
-                <>
-                  {" "}
-                  <button className="link" onClick={() => { setConfirming(m.user_id); setError(null); }}>
-                    Remove
-                  </button>
-                </>
+                <button className="link" onClick={() => { setConfirming(m.user_id); setError(null); }}>
+                  Remove
+                </button>
               )
             )}
           </li>
@@ -80,22 +79,26 @@ export function Team({ members, currentUserId, onInvite, onRemoved }: {
       </ul>
 
       {pending.length > 0 && (
-        <>
-          <h3>Invited — hasn't joined yet</h3>
-          <ul className="member-list">
+        <section>
+          <span className="overline">Invited — hasn't joined yet</span>
+          <ul className="ruled-list">
             {pending.map((i) => (
               <li key={i.email}>
-                {i.email}
-                <span className="muted"> — invited {new Date(i.created_at).toLocaleDateString()}</span>
-                {" "}
+                <span className="av av--lg">?</span>
+                <span className="grow">
+                  {i.email}
+                  <span className="muted"> · invited {new Date(i.created_at).toLocaleDateString()}</span>
+                </span>
                 <button className="link" onClick={() => revoke(i.email)}>Revoke</button>
               </li>
             ))}
           </ul>
-        </>
+        </section>
       )}
 
-      <button onClick={onInvite}>Invite teammate</button>
+      <p style={{ marginTop: 20 }}>
+        <button className="btn-primary" onClick={onInvite}>Invite teammate</button>
+      </p>
     </div>
   );
 }

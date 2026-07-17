@@ -1,12 +1,13 @@
 import { useState } from "react";
 import * as api from "../lib/api";
-import type { Issue, IssueStatus, Project } from "../lib/types";
+import type { Issue, IssueStatus, Member, Project } from "../lib/types";
 import { STATUSES } from "../lib/types";
+import { Entry } from "./Entry";
 
 const STATUS_LABEL: Record<IssueStatus, string> = {
   backlog: "Backlog",
   todo: "Todo",
-  in_progress: "In Progress",
+  in_progress: "In progress",
   done: "Done",
   cancelled: "Cancelled",
 };
@@ -14,15 +15,18 @@ const STATUS_LABEL: Record<IssueStatus, string> = {
 export function Board({
   project,
   issues,
+  members,
   onSelect,
   onChanged,
 }: {
   project: Project;
   issues: Issue[];
+  members: Member[];
   onSelect: (issue: Issue) => void;
   onChanged: () => void;
 }) {
   const [quickTitle, setQuickTitle] = useState("");
+  const [dragOver, setDragOver] = useState<IssueStatus | null>(null);
 
   async function quickCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -36,44 +40,45 @@ export function Board({
     <div className="board-wrap">
       <form className="quick-create" onSubmit={quickCreate}>
         <input
-          placeholder={`New issue in ${project.key}…`}
+          placeholder={`Write a new entry in ${project.key}…`}
           value={quickTitle}
           onChange={(e) => setQuickTitle(e.target.value)}
         />
       </form>
       <div className="board">
-        {STATUSES.map((status) => (
-          <section
-            key={status}
-            className="column"
-            onDragOver={(e) => e.preventDefault()}
-            onDrop={async (e) => {
-              const id = e.dataTransfer.getData("issue-id");
-              if (id) {
-                await api.updateIssue(id, { status });
-                onChanged();
-              }
-            }}
-          >
-            <h2>{STATUS_LABEL[status]}</h2>
-            {issues
-              .filter((i) => i.status === status)
-              .map((issue) => (
-                <article
+        {STATUSES.map((status) => {
+          const col = issues.filter((i) => i.status === status);
+          return (
+            <section
+              key={status}
+              className={`column${dragOver === status ? " drag-over" : ""}`}
+              onDragOver={(e) => { e.preventDefault(); setDragOver(status); }}
+              onDragLeave={() => setDragOver((s) => (s === status ? null : s))}
+              onDrop={async (e) => {
+                setDragOver(null);
+                const id = e.dataTransfer.getData("issue-id");
+                if (id) {
+                  await api.updateIssue(id, { status });
+                  onChanged();
+                }
+              }}
+            >
+              <h2>
+                {STATUS_LABEL[status]} <span className="count">{col.length}</span>
+              </h2>
+              {col.map((issue) => (
+                <Entry
                   key={issue.id}
-                  className="card"
+                  issue={issue}
+                  project={project}
+                  members={members}
+                  onSelect={onSelect}
                   draggable
-                  onDragStart={(e) => e.dataTransfer.setData("issue-id", issue.id)}
-                  onClick={() => onSelect(issue)}
-                >
-                  <span className="issue-id">{project.key}-{issue.number}</span>
-                  {issue.created_by_agent && <span className="agent-badge" title={`Created by ${issue.created_by_agent}`}>🤖</span>}
-                  <p>{issue.title}</p>
-                  {issue.priority !== "none" && <span className={`priority ${issue.priority}`}>{issue.priority}</span>}
-                </article>
+                />
               ))}
-          </section>
-        ))}
+            </section>
+          );
+        })}
       </div>
     </div>
   );

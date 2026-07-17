@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { supabase } from "../lib/supabase";
+import { Mark } from "../components/Mark";
 
 export function Auth() {
   const [mode, setMode] = useState<"signin" | "signup" | "invite">("signin");
@@ -30,7 +31,11 @@ export function Auth() {
 
   return (
     <main className="centered">
-      <h1>Kriya</h1>
+      <div className="auth-mark">
+        <span className="auth-face"><Mark size={52} /></span>
+        <h1>Kriya<em>.</em></h1>
+        <span className="auth-tagline">a ledger of actions — yours, and your agents'</span>
+      </div>
       <form onSubmit={submit}>
         {mode === "signup" && (
           <input placeholder="Your name" value={name} onChange={(e) => setName(e.target.value)} required />
@@ -53,19 +58,21 @@ export function Auth() {
           required
           minLength={8}
         />
-        <button type="submit">
+        <button type="submit" className="btn-primary">
           {mode === "signin" ? "Sign in" : mode === "signup" ? "Sign up" : "Join workspace"}
         </button>
         {error && <p className="error">{error}</p>}
       </form>
-      <button className="link" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
-        {mode === "signin" ? "New here? Sign up" : "Have an account? Sign in"}
-      </button>
-      {mode !== "invite" && (
-        <button className="link" onClick={() => setMode("invite")}>
-          Invited? Join with your email code
+      <div className="auth-switch">
+        <button className="link" onClick={() => setMode(mode === "signin" ? "signup" : "signin")}>
+          {mode === "signin" ? "New here? Sign up" : "Have an account? Sign in"}
         </button>
-      )}
+        {mode !== "invite" && (
+          <button className="link" onClick={() => setMode("invite")}>
+            Invited? Join with your email code
+          </button>
+        )}
+      </div>
     </main>
   );
 }
