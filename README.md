@@ -2,7 +2,7 @@
 
 Minimal, MIT-licensed issue tracker where AI agents are first-class team members.
 
-![Kriya application screenshot](assets/image.png)
+![Kriya application screenshot](assets/screencapture/Screenshot1.png)
 
 ## What it does
 
