@@ -49,8 +49,14 @@ export function ConnectAgent() {
     localStorage.setItem(MCP_URL_KEY, url);
   }
 
-  const url = mcpUrl.trim() || "https://<your-kriya-mcp-deployment>";
+  const url = (mcpUrl.trim() || "https://<your-kriya-mcp-deployment>/mcp").replace(/\/+$/, "");
   const key = minted?.key ?? "kriya_<your key>";
+  const claudeCodeSnippet = `claude mcp add --transport http kriya ${url} \\\n  --header "Authorization: Bearer ${key}"`;
+  const otherClientSnippet = JSON.stringify(
+    { url, headers: { Authorization: `Bearer ${key}` } },
+    null,
+    2,
+  );
 
   return (
     <div className="page">
@@ -125,20 +131,32 @@ export function ConnectAgent() {
 
       <section>
         <span className="overline">Connect Claude Code</span>
-        <pre className="snippet">
-          <code>{`claude mcp add --transport http kriya ${url}/mcp \\\n  --header "Authorization: Bearer ${key}"`}</code>
-        </pre>
+        <div className="snippet-wrap">
+          <pre className="snippet">
+            <code>{claudeCodeSnippet}</code>
+          </pre>
+          <button
+            className="snippet-copy"
+            onClick={() => navigator.clipboard.writeText(claudeCodeSnippet)}
+          >
+            Copy
+          </button>
+        </div>
       </section>
 
       <section>
         <span className="overline">Any other MCP client</span>
-        <pre className="snippet">
-          <code>{JSON.stringify(
-            { url: `${url}/mcp`, headers: { Authorization: `Bearer ${key}` } },
-            null,
-            2
-          )}</code>
-        </pre>
+        <div className="snippet-wrap">
+          <pre className="snippet">
+            <code>{otherClientSnippet}</code>
+          </pre>
+          <button
+            className="snippet-copy"
+            onClick={() => navigator.clipboard.writeText(otherClientSnippet)}
+          >
+            Copy
+          </button>
+        </div>
       </section>
     </div>
   );
