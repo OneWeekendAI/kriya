@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "description": "MCP server for Kriya — lets AI agents manage issues in your Kriya workspace",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OneWeekendAI/kriya.git",
+    "directory": "backend/mcp-server"
+  },
+  "homepage": "https://github.com/OneWeekendAI/kriya#readme",
+  "keywords": ["mcp", "model-context-protocol", "issue-tracker", "kriya", "ai-agents", "claude", "supabase"],
+  "engines": { "node": ">=18" },
   "type": "module",
   "bin": {
     "kriya-mcp": "dist/index.js"
