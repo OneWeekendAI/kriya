@@ -505,6 +505,11 @@ textarea { line-height: 1.55; resize: vertical; }
 .ledger-item .who .for { color: var(--ink-3); font-size: 0.74rem; }
 .ledger-item time { display: inline; font-family: var(--mono); font-size: 0.66rem; color: var(--ink-3); margin-left: 6px; }
 .ledger-item .what { margin: 1px 0 0; font-size: 0.83rem; color: var(--ink-2); }
+.ledger-item .what + .what { margin-top: 3px; }
+.session-count {
+  font-family: var(--mono); font-size: 0.62rem; color: var(--ink-3);
+  border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 6px;
+}
 .ledger-item .what.said { color: var(--ink); }
 
 .comment-box { display: flex; gap: 8px; border-top: 1px solid var(--line-strong); padding-top: 12px; }

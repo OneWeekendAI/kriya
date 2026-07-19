@@ -17,6 +17,35 @@ type LedgerLine =
   | { kind: "comment"; at: string; id: string; c: Comment }
   | { kind: "activity"; at: string; id: string; a: Activity };
 
+/** A run of consecutive ledger lines by the same actor, close together in time. */
+type LedgerSession = { id: string; agent: string | null; actorId: string | null; lines: LedgerLine[] };
+
+const SESSION_GAP_MS = 30 * 60 * 1000;
+
+function actorOf(line: LedgerLine): { agent: string | null; actorId: string | null } {
+  return line.kind === "comment"
+    ? { agent: line.c.agent_name, actorId: line.c.author_id }
+    : { agent: line.a.agent_name, actorId: line.a.actor_id };
+}
+
+function groupSessions(ledger: LedgerLine[]): LedgerSession[] {
+  const sessions: LedgerSession[] = [];
+  for (const line of ledger) {
+    const { agent, actorId } = actorOf(line);
+    const last = sessions[sessions.length - 1];
+    const prev = last?.lines[last.lines.length - 1];
+    const sameActor = last && last.agent === agent && last.actorId === actorId;
+    const closeEnough =
+      prev && new Date(line.at).getTime() - new Date(prev.at).getTime() <= SESSION_GAP_MS;
+    if (sameActor && closeEnough) {
+      last.lines.push(line);
+    } else {
+      sessions.push({ id: line.id, agent, actorId, lines: [line] });
+    }
+  }
+  return sessions;
+}
+
 function Who({ actorId, agent, members }: { actorId: string | null; agent: string | null; members: Member[] }) {
   const human = members.find((m) => m.user_id === actorId)?.display_name;
   if (agent) {
@@ -32,6 +61,23 @@ function Who({ actorId, agent, members }: { actorId: string | null; agent: strin
 
 const clock = (iso: string) =>
   new Date(iso).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+
+const hhmm = (iso: string) =>
+  new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+/** "Jul 19, 10:02" for a single line, "Jul 19, 10:02 – 10:41" for a span. */
+function sessionSpan(s: LedgerSession): string {
+  const first = s.lines[0].at;
+  const last = s.lines[s.lines.length - 1].at;
+  return first === last || hhmm(first) === hhmm(last) ? clock(first) : `${clock(first)} – ${hhmm(last)}`;
+}
+
+function describe(a: Activity): string {
+  if (a.action === "created") return "opened this entry";
+  if (a.action === "review") return a.new_value === "requested" ? "submitted this for review" : "review cleared";
+  if (a.action === "agent_assignee") return `agent: ${a.old_value ?? "—"} → ${a.new_value ?? "—"}`;
+  return `${a.action}: ${a.old_value ?? "—"} → ${a.new_value ?? "—"}`;
+}
 
 export function IssuePanel({
   issue,
@@ -202,38 +248,23 @@ export function IssuePanel({
         <section>
           <span className="overline">Ledger</span>
           <div className="ledger-stream">
-            {ledger.map((line) => (
-              <div key={line.id} className="ledger-item">
-                <span className={`av${(line.kind === "comment" ? line.c.agent_name : line.a.agent_name) ? " av--agent" : ""}`}>
-                  {initial(
-                    line.kind === "comment"
-                      ? line.c.agent_name ?? members.find((m) => m.user_id === line.c.author_id)?.display_name ?? "?"
-                      : line.a.agent_name ?? members.find((m) => m.user_id === line.a.actor_id)?.display_name ?? "?",
-                  )}
+            {groupSessions(ledger).map((s) => (
+              <div key={s.id} className="ledger-item">
+                <span className={`av${s.agent ? " av--agent" : ""}`}>
+                  {initial(s.agent ?? members.find((m) => m.user_id === s.actorId)?.display_name ?? "?")}
                 </span>
                 <div className="grow">
-                  {line.kind === "comment" ? (
-                    <>
-                      <Who actorId={line.c.author_id} agent={line.c.agent_name} members={members} />
-                      <time>{clock(line.at)}</time>
-                      <p className="what said">{line.c.body}</p>
-                    </>
-                  ) : (
-                    <>
-                      <Who actorId={line.a.actor_id} agent={line.a.agent_name} members={members} />
-                      <time>{clock(line.at)}</time>
-                      <p className="what">
-                        {line.a.action === "created"
-                          ? "opened this entry"
-                          : line.a.action === "review"
-                          ? line.a.new_value === "requested"
-                            ? "submitted this for review"
-                            : "review cleared"
-                          : line.a.action === "agent_assignee"
-                          ? `agent: ${line.a.old_value ?? "—"} → ${line.a.new_value ?? "—"}`
-                          : `${line.a.action}: ${line.a.old_value ?? "—"} → ${line.a.new_value ?? "—"}`}
-                      </p>
-                    </>
+                  <Who actorId={s.actorId} agent={s.agent} members={members} />
+                  <time>{sessionSpan(s)}</time>
+                  {s.lines.length > 1 && (
+                    <span className="session-count">{s.lines.length} entries</span>
+                  )}
+                  {s.lines.map((line) =>
+                    line.kind === "comment" ? (
+                      <p key={line.id} className="what said">{line.c.body}</p>
+                    ) : (
+                      <p key={line.id} className="what">{describe(line.a)}</p>
+                    ),
                   )}
                 </div>
               </div>
