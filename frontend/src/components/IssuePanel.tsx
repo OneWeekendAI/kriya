@@ -48,6 +48,7 @@ export function IssuePanel({
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
+  const [agents, setAgents] = useState<string[]>([]);
   const [newComment, setNewComment] = useState("");
   const [description, setDescription] = useState(issue.description);
 
@@ -56,6 +57,10 @@ export function IssuePanel({
     void api.listComments(issue.id).then(setComments);
     void api.listActivity(issue.id).then(setActivity);
   }, [issue]);
+
+  useEffect(() => {
+    void api.knownAgents().then(setAgents);
+  }, []);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
@@ -100,6 +105,20 @@ export function IssuePanel({
 
         <h2>{issue.title}</h2>
 
+        {issue.needs_review && (
+          <div className="review-bar">
+            <span>
+              {issue.assignee_agent ?? "An agent"} finished this — awaiting your review.
+            </span>
+            <button className="btn-primary" onClick={() => patch({ status: "done" })}>
+              Approve → Done
+            </button>
+            <button onClick={() => patch({ needs_review: false, status: "in_progress" })}>
+              Send back
+            </button>
+          </div>
+        )}
+
         <div className="status-chips">
           {STATUSES.map((s) => (
             <button
@@ -129,6 +148,20 @@ export function IssuePanel({
               {members.map((m) => <option key={m.user_id} value={m.user_id}>{m.display_name}</option>)}
             </select>
           </div>
+          {(agents.length > 0 || issue.assignee_agent) && (
+            <div className="field-row">
+              <span className="overline">Agent</span>
+              <select
+                value={issue.assignee_agent ?? ""}
+                onChange={(e) => patch({ assignee_agent: e.target.value || null })}
+              >
+                <option value="">No agent</option>
+                {[...new Set([...agents, ...(issue.assignee_agent ? [issue.assignee_agent] : [])])].map(
+                  (a) => <option key={a} value={a}>{a}</option>,
+                )}
+              </select>
+            </div>
+          )}
           <div className="field-row">
             <span className="overline">Due</span>
             <input
@@ -172,6 +205,12 @@ export function IssuePanel({
                       <p className="what">
                         {line.a.action === "created"
                           ? "opened this entry"
+                          : line.a.action === "review"
+                          ? line.a.new_value === "requested"
+                            ? "submitted this for review"
+                            : "review cleared"
+                          : line.a.action === "agent_assignee"
+                          ? `agent: ${line.a.old_value ?? "—"} → ${line.a.new_value ?? "—"}`
                           : `${line.a.action}: ${line.a.old_value ?? "—"} → ${line.a.new_value ?? "—"}`}
                       </p>
                     </>

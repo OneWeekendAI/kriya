@@ -105,12 +105,12 @@ const created = await call("create_issue", {
 const agentNumber = Number(created.created.split("-")[1]);
 ok(`agent created ${created.created}`);
 
-await call("update_issue", { project_key: key, number: agentNumber, status: "in_progress" });
-await call("add_comment", { project_key: key, number: agentNumber, body: "Working on it." });
+await call("update_issue", { id: created.created, status: "in_progress" });
+await call("add_comment", { id: created.created, body: "Working on it." });
 await call("set_issue_labels", { project_key: key, number: agentNumber, labels: ["bug", "auth"] });
-ok("agent updated status, commented, set labels");
+ok("agent updated status (id form), commented (id form), set labels (key+number form)");
 
-const issue = await call("get_issue", { project_key: key, number: agentNumber });
+const issue = await call("get_issue", { id: `${key}-${agentNumber}` });
 assert.equal(issue.created_by_agent, AGENT, "issue attributed to the agent");
 assert.equal(issue.created_by, uid, "…acting for the signed-in human");
 assert.deepEqual(issue.labels.sort(), ["auth", "bug"], "labels set");

@@ -26,6 +26,8 @@ export interface Issue {
   status: IssueStatus;
   priority: IssuePriority;
   assignee_id: string | null;
+  assignee_agent: string | null;
+  needs_review: boolean;
   due_date: string | null;
   created_by: string | null;
   created_by_agent: string | null;

@@ -351,6 +351,29 @@ textarea { line-height: 1.55; resize: vertical; }
 }
 .prio.high, .prio.urgent { border-color: var(--verm); color: var(--verm); }
 
+/* Agent finished; a human still has to sign off. */
+.review-flag {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  border: 1px dashed var(--verm);
+  border-radius: 999px;
+  padding: 0 7px;
+  color: var(--verm);
+}
+
+.review-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px dashed var(--verm);
+  border-radius: 4px;
+  font-size: 0.82rem;
+}
+.review-bar span { flex: 1; color: var(--ink-2); }
+
 /* --- Stream board ---------------------------------------------------------- */
 
 .quick-create { margin-bottom: 16px; }

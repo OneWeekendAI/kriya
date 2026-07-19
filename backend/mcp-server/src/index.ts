@@ -60,7 +60,7 @@ function likePattern(search: string): string {
   return `%${search.replace(/[,()]/g, " ").trim()}%`;
 }
 
-function createServer(supabase: SupabaseClient): McpServer {
+function createServer(supabase: SupabaseClient, agentName: string): McpServer {
   const server = new McpServer({ name: "kriya", version: "0.1.0" });
 
   async function projectByKey(key: string) {
@@ -75,6 +75,24 @@ function createServer(supabase: SupabaseClient): McpServer {
       .from("issues").select("*").eq("project_id", project.id).eq("number", number).single();
     if (error || !data) fail(`No issue ${projectKey.toUpperCase()}-${number}`);
     return { project, issue: data };
+  }
+
+  // Every single-issue tool accepts id "KEY-42" (matches ids in list_issues
+  // output) or the legacy project_key + number pair.
+  const issueIdArgs = {
+    id: z.string().regex(/^[A-Za-z][A-Za-z0-9]{1,7}-\d+$/).optional()
+      .describe("Issue id like 'PAY-42' (preferred)"),
+    project_key: z.string().optional().describe("Legacy alternative to id, with number"),
+    number: z.number().int().optional(),
+  };
+
+  async function issueFromArgs(args: { id?: string; project_key?: string; number?: number }) {
+    if (args.id) {
+      const dash = args.id.lastIndexOf("-");
+      return issueRef(args.id.slice(0, dash), Number(args.id.slice(dash + 1)));
+    }
+    if (args.project_key && args.number !== undefined) return issueRef(args.project_key, args.number);
+    fail("Pass id like 'PAY-42' (or project_key + number)");
   }
 
   async function memberByEmail(email: string) {
@@ -117,19 +135,23 @@ server.tool(
     status: statusZ.optional(),
     priority: priorityZ.optional(),
     assignee_email: z.string().optional(),
+    assignee_agent: z.string().optional().describe("Filter to issues assigned to this agent by name"),
+    needs_review: z.boolean().optional().describe("Filter to issues awaiting (true) or not awaiting (false) human review"),
     search: z.string().optional(),
     limit: z.number().int().min(1).max(200).default(50),
   },
-  async ({ project_key, status, priority, assignee_email, search, limit }) => {
+  async ({ project_key, status, priority, assignee_email, assignee_agent, needs_review, search, limit }) => {
     let q = supabase
       .from("issues")
-      .select("number, title, status, priority, due_date, created_by_agent, created_at, projects!inner(key), assignee:members!issues_assignee_id_fkey(display_name, email)")
+      .select("number, title, status, priority, due_date, created_by_agent, assignee_agent, needs_review, created_at, projects!inner(key), assignee:members!issues_assignee_id_fkey(display_name, email)")
       .order("created_at", { ascending: false })
       .limit(limit);
     if (project_key) q = q.eq("projects.key", project_key.toUpperCase());
     if (status) q = q.eq("status", status);
     if (priority) q = q.eq("priority", priority);
     if (assignee_email) q = q.eq("assignee_id", (await memberByEmail(assignee_email)).user_id);
+    if (assignee_agent) q = q.eq("assignee_agent", assignee_agent);
+    if (needs_review !== undefined) q = q.eq("needs_review", needs_review);
     if (search) {
       const p = likePattern(search);
       q = q.or(`title.ilike.${p},description.ilike.${p}`);
@@ -143,6 +165,8 @@ server.tool(
         status: i.status,
         priority: i.priority,
         assignee: i.assignee?.display_name ?? null,
+        assignee_agent: i.assignee_agent,
+        needs_review: i.needs_review,
         due_date: i.due_date,
         created_by_agent: i.created_by_agent,
       }))
@@ -153,9 +177,9 @@ server.tool(
 server.tool(
   "get_issue",
   "Get one issue with its comments and full activity history. id like 'PAY-42'.",
-  { project_key: z.string(), number: z.number().int() },
-  async ({ project_key, number }) => {
-    const { project, issue } = await issueRef(project_key, number);
+  issueIdArgs,
+  async (args) => {
+    const { project, issue } = await issueFromArgs(args);
     const [{ data: comments }, { data: activity }, { data: labels }] = await Promise.all([
       supabase.from("comments")
         .select("body, agent_name, created_at, author:members!comments_author_id_fkey(display_name)")
@@ -185,9 +209,10 @@ server.tool(
     status: statusZ.default("todo"),
     priority: priorityZ.default("none"),
     assignee_email: z.string().optional(),
+    assignee_agent: z.string().max(50).optional().describe("Assign to an agent by name, e.g. 'Claude Code'"),
     due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
   },
-  async ({ project_key, title, description, status, priority, assignee_email, due_date }) => {
+  async ({ project_key, title, description, status, priority, assignee_email, assignee_agent, due_date }) => {
     const project = await projectByKey(project_key);
     const { data, error } = await supabase
       .from("issues")
@@ -199,6 +224,7 @@ server.tool(
         priority,
         due_date,
         assignee_id: assignee_email ? (await memberByEmail(assignee_email)).user_id : null,
+        assignee_agent,
       })
       .select("number").single();
     if (error) fail(error.message);
@@ -210,17 +236,17 @@ server.tool(
   "update_issue",
   "Update fields on an issue (status, priority, assignee, title, description, due date). Changes are logged to the activity trail attributed to this agent.",
   {
-    project_key: z.string(),
-    number: z.number().int(),
+    ...issueIdArgs,
     title: z.string().min(1).max(500).optional(),
     description: z.string().optional(),
     status: statusZ.optional(),
     priority: priorityZ.optional(),
     assignee_email: z.string().nullable().optional(),
+    assignee_agent: z.string().max(50).nullable().optional().describe("Assign to an agent by name; null to unassign"),
     due_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   },
-  async ({ project_key, number, assignee_email, ...fields }) => {
-    const { project, issue } = await issueRef(project_key, number);
+  async ({ id, project_key, number, assignee_email, ...fields }) => {
+    const { project, issue } = await issueFromArgs({ id, project_key, number });
     const patch: Record<string, unknown> = { ...fields };
     if (assignee_email !== undefined)
       patch.assignee_id = assignee_email === null ? null : (await memberByEmail(assignee_email)).user_id;
@@ -233,9 +259,9 @@ server.tool(
 server.tool(
   "add_comment",
   "Add a comment to an issue, attributed to this agent.",
-  { project_key: z.string(), number: z.number().int(), body: z.string().min(1) },
-  async ({ project_key, number, body }) => {
-    const { project, issue } = await issueRef(project_key, number);
+  { ...issueIdArgs, body: z.string().min(1) },
+  async ({ id, project_key, number, body }) => {
+    const { project, issue } = await issueFromArgs({ id, project_key, number });
     const { error } = await supabase
       .from("comments")
       .insert({ issue_id: issue.id, body });
@@ -260,9 +286,9 @@ server.tool(
 server.tool(
   "set_issue_labels",
   "Replace an issue's labels with the given set. Unknown labels are created in the project automatically.",
-  { project_key: z.string(), number: z.number().int(), labels: z.array(z.string().min(1).max(50)).max(20) },
-  async ({ project_key, number, labels }) => {
-    const { project, issue } = await issueRef(project_key, number);
+  { ...issueIdArgs, labels: z.array(z.string().min(1).max(50)).max(20) },
+  async ({ id, project_key, number, labels }) => {
+    const { project, issue } = await issueFromArgs({ id, project_key, number });
     const names = [...new Set(labels)];
     if (names.length > 0) {
       const { error: upsertErr } = await supabase
@@ -285,6 +311,61 @@ server.tool(
       if (linkErr) fail(linkErr.message);
     }
     return json({ issue: `${project.key}-${issue.number}`, labels: (rows ?? []).map((l) => l.name) });
+  }
+);
+
+const STATUS_QUEUE = ["in_progress", "todo", "backlog"] as const;
+const PRIORITY_RANK: Record<string, number> = { urgent: 4, high: 3, medium: 2, low: 1, none: 0 };
+
+server.tool(
+  "next_task",
+  "Get the next issue assigned to you (this agent) to work on: unfinished work first, then highest priority, then oldest. When you start, set its status to in_progress; when finished, call submit_for_review. Returns null when your queue is empty.",
+  {},
+  async () => {
+    const { data, error } = await supabase
+      .from("issues")
+      .select("number, title, description, status, priority, due_date, needs_review, created_at, projects!inner(key)")
+      .eq("assignee_agent", agentName)
+      .eq("needs_review", false)
+      .in("status", [...STATUS_QUEUE]);
+    if (error) fail(error.message);
+    const queue = (data ?? []).sort((a: any, b: any) =>
+      STATUS_QUEUE.indexOf(a.status) - STATUS_QUEUE.indexOf(b.status) ||
+      PRIORITY_RANK[b.priority] - PRIORITY_RANK[a.priority] ||
+      a.created_at.localeCompare(b.created_at)
+    );
+    const next = queue[0] as any;
+    return json(
+      next
+        ? {
+            task: {
+              id: `${next.projects.key}-${next.number}`,
+              title: next.title,
+              description: next.description,
+              status: next.status,
+              priority: next.priority,
+              due_date: next.due_date,
+            },
+            remaining_in_queue: queue.length - 1,
+          }
+        : { task: null, remaining_in_queue: 0 }
+    );
+  }
+);
+
+server.tool(
+  "submit_for_review",
+  "Mark an issue as finished and awaiting human review (don't set status to done yourself — a human approves by moving it to done). Optionally add a summary comment of what you did.",
+  { ...issueIdArgs, summary: z.string().min(1).max(65536).optional() },
+  async ({ id, project_key, number, summary }) => {
+    const { project, issue } = await issueFromArgs({ id, project_key, number });
+    if (summary) {
+      const { error } = await supabase.from("comments").insert({ issue_id: issue.id, body: summary });
+      if (error) fail(error.message);
+    }
+    const { error } = await supabase.from("issues").update({ needs_review: true }).eq("id", issue.id);
+    if (error) fail(error.message);
+    return json({ submitted_for_review: `${project.key}-${issue.number}` });
   }
 );
 
@@ -385,10 +466,13 @@ async function serveHttp(port: number) {
   app.post("/mcp", async (req, res) => {
     const bearer = (req.headers.authorization ?? "").replace(/^Bearer /, "");
     let db: SupabaseClient | null = null;
+    let agentName = AGENT;
     if (sharedClient && sharedToken && bearer === sharedToken) {
       db = sharedClient;
     } else if (bearer.startsWith("kriya_")) {
-      db = (await clientForKey(bearer))?.client ?? null;
+      const resolved = await clientForKey(bearer);
+      db = resolved?.client ?? null;
+      if (resolved) agentName = resolved.identity.agent_name;
     }
     if (!db) {
       res.status(401).json({
@@ -402,7 +486,7 @@ async function serveHttp(port: number) {
       // Stateless mode: one transport + server instance per request.
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on("close", () => void transport.close());
-      await createServer(db).connect(transport);
+      await createServer(db, agentName).connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (e) {
       console.error("request failed:", e);
@@ -424,7 +508,7 @@ async function main() {
   if (port) {
     await serveHttp(Number(port));
   } else {
-    await createServer(await signedInClient()).connect(new StdioServerTransport());
+    await createServer(await signedInClient(), AGENT).connect(new StdioServerTransport());
     console.error(`Kriya MCP server running as agent "${AGENT}"`);
   }
 }

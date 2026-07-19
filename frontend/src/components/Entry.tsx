@@ -31,7 +31,12 @@ export function Entry({
       </span>
       <p className="entry-title">{issue.title}</p>
       <div className="entry-meta">
-        {issue.created_by_agent ? (
+        {issue.assignee_agent ? (
+          <>
+            <span className="av av--agent">{initial(issue.assignee_agent)}</span>
+            <span>{issue.assignee_agent}</span>
+          </>
+        ) : issue.created_by_agent ? (
           <>
             <span className="av av--agent">{initial(issue.created_by_agent)}</span>
             <span>{issue.created_by_agent}</span>
@@ -39,6 +44,7 @@ export function Entry({
         ) : (
           assignee && <span className="av">{initial(assignee.display_name)}</span>
         )}
+        {issue.needs_review && <span className="review-flag">review</span>}
         {issue.priority !== "none" && <span className={`prio ${issue.priority}`}>{issue.priority}</span>}
       </div>
       {issue.status === "done" && <span className="stamp">Done</span>}

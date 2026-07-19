@@ -118,9 +118,17 @@ export async function createIssue(
   if (error) throw error;
 }
 
+/** Agent names that can be assigned work: any agent holding a key or already
+ *  seen in the activity trail (definer RPC — agent_keys RLS is per-owner). */
+export async function knownAgents(): Promise<string[]> {
+  const { data, error } = await supabase().rpc("known_agents");
+  if (error) return []; // pre-0006 backend: agent assignment simply unavailable
+  return data ?? [];
+}
+
 export async function updateIssue(
   issueId: string,
-  patch: Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assignee_id" | "due_date">>
+  patch: Partial<Pick<Issue, "title" | "description" | "status" | "priority" | "assignee_id" | "assignee_agent" | "needs_review" | "due_date">>
 ): Promise<void> {
   const { error } = await supabase().from("issues").update(patch).eq("id", issueId);
   if (error) throw error;
