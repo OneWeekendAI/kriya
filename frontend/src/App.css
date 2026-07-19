@@ -362,6 +362,20 @@ textarea { line-height: 1.55; resize: vertical; }
   color: var(--verm);
 }
 
+/* PR state chips: open pulses vermillion, merged reads as settled ink. */
+.pr-state {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.05em;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  padding: 0 7px;
+  color: var(--ink-2);
+}
+.pr-state--open { border-color: var(--verm); color: var(--verm); }
+.pr-state--merged { border-style: double; }
+.pr-state--closed { color: var(--ink-3); text-decoration: line-through; }
+
 .review-bar {
   display: flex;
   align-items: center;

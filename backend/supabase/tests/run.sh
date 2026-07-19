@@ -24,6 +24,8 @@ run_sql ../migrations/0001_init.sql
 run_sql ../migrations/0002_team_onboarding.sql
 run_sql ../migrations/0005_member_removal.sql
 run_sql ../migrations/0006_agent_queue.sql
+run_sql ../migrations/0007_github.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 10_tests.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 20_team_tests.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 30_queue_tests.sql
+docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 40_github_tests.sql

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import * as api from "../lib/api";
-import type { Activity, Comment, Issue, IssueStatus, Member, Project } from "../lib/types";
+import type { Activity, Comment, Issue, IssueLink, IssueStatus, Member, Project } from "../lib/types";
 import { PRIORITIES, STATUSES } from "../lib/types";
 import { initial } from "./Entry";
 
@@ -49,6 +49,7 @@ export function IssuePanel({
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [agents, setAgents] = useState<string[]>([]);
+  const [links, setLinks] = useState<IssueLink[]>([]);
   const [newComment, setNewComment] = useState("");
   const [description, setDescription] = useState(issue.description);
 
@@ -56,6 +57,7 @@ export function IssuePanel({
     setDescription(issue.description);
     void api.listComments(issue.id).then(setComments);
     void api.listActivity(issue.id).then(setActivity);
+    void api.listIssueLinks(issue.id).then(setLinks);
   }, [issue]);
 
   useEffect(() => {
@@ -171,6 +173,24 @@ export function IssuePanel({
             />
           </div>
         </div>
+
+        {links.length > 0 && (
+          <section>
+            <span className="overline">Pull requests</span>
+            <ul className="ruled-list">
+              {links.map((l) => (
+                <li key={l.id}>
+                  <span className="grow">
+                    <a href={l.url} target="_blank" rel="noreferrer">
+                      {l.title || l.url.replace(/^https?:\/\/(www\.)?github\.com\//, "")}
+                    </a>
+                  </span>
+                  <span className={`pr-state pr-state--${l.state}`}>{l.state}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <textarea
           placeholder="Description (markdown)"

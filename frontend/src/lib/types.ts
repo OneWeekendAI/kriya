@@ -52,6 +52,15 @@ export interface AgentKey {
   last_used_at: string | null;
 }
 
+export interface IssueLink {
+  id: string;
+  issue_id: string;
+  url: string;
+  title: string;
+  state: "open" | "merged" | "closed";
+  updated_at: string;
+}
+
 export interface Activity {
   id: number;
   issue_id: string;

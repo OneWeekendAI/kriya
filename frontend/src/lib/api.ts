@@ -2,7 +2,7 @@
 // Identity and agent attribution are handled by database triggers; this layer
 // deliberately never writes created_by / author_id / *_agent columns.
 import { supabase } from "./supabase";
-import type { Activity, AgentKey, Comment, Issue, IssuePriority, IssueStatus, Member, Project } from "./types";
+import type { Activity, AgentKey, Comment, Issue, IssueLink, IssuePriority, IssueStatus, Member, Project } from "./types";
 
 export async function listMembers(): Promise<Member[]> {
   const { data, error } = await supabase().from("members").select("*").order("display_name");
@@ -146,6 +146,31 @@ export async function addComment(issueId: string, body: string): Promise<void> {
   if (error) throw error;
 }
 
+// --- GitHub connection (workspace webhook secret + PR links) ----------------
+
+/** The workspace GitHub webhook secret, minted on first call (definer RPC). */
+export async function ensureGithubSecret(): Promise<string> {
+  const { data, error } = await supabase().rpc("ensure_github_secret");
+  if (error) throw error;
+  return data;
+}
+
+/** Mint a fresh secret — every connected repo's webhook must be updated. */
+export async function rotateGithubSecret(): Promise<string> {
+  const { data, error } = await supabase().rpc("rotate_github_secret");
+  if (error) throw error;
+  return data;
+}
+
+/** PRs linked to an issue by the GitHub webhook, newest first. */
+export async function listIssueLinks(issueId: string): Promise<IssueLink[]> {
+  const { data, error } = await supabase()
+    .from("issue_links").select("*").eq("issue_id", issueId)
+    .order("updated_at", { ascending: false });
+  if (error) return []; // pre-0007 backend: no links to show
+  return data;
+}
+
 export async function listActivity(issueId: string): Promise<Activity[]> {
   const { data, error } = await supabase()
     .from("activity").select("*").eq("issue_id", issueId).order("created_at");
@@ -175,6 +200,7 @@ export function onWorkspaceChange(callback: () => void): () => void {
     .on("postgres_changes", { event: "*", schema: "public", table: "issues" }, callback)
     .on("postgres_changes", { event: "*", schema: "public", table: "comments" }, callback)
     .on("postgres_changes", { event: "*", schema: "public", table: "activity" }, callback)
+    .on("postgres_changes", { event: "*", schema: "public", table: "issue_links" }, callback)
     .on("postgres_changes", { event: "*", schema: "public", table: "projects" }, callback)
     .subscribe();
   return () => {

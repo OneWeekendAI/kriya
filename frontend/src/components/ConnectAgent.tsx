@@ -158,6 +158,90 @@ export function ConnectAgent() {
           </button>
         </div>
       </section>
+
+      <ConnectGithub />
     </div>
+  );
+}
+
+/**
+ * "Connect GitHub" — any member can wire a repo: mention an issue id (KRI-42)
+ * in a PR title or branch and Kriya tracks the PR and moves the issue.
+ * The webhook secret is workspace-shared, held in the database (0007).
+ */
+function ConnectGithub() {
+  const [secret, setSecret] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmRotate, setConfirmRotate] = useState(false);
+
+  const webhookUrl = `${(import.meta.env.VITE_SUPABASE_URL ?? "https://<your-project>.supabase.co").replace(/\/+$/, "")}/functions/v1/github-webhook`;
+
+  async function reveal() {
+    setError(null);
+    try {
+      setSecret(await api.ensureGithubSecret());
+    } catch (e) {
+      setError(`${(e as Error).message} — is migration 0007 applied?`);
+    }
+  }
+
+  async function rotate() {
+    setConfirmRotate(false);
+    setError(null);
+    try {
+      setSecret(await api.rotateGithubSecret());
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
+  return (
+    <section>
+      <span className="overline">Connect GitHub</span>
+      <p>
+        Put an issue id like <code className="mono">KRI-42</code> in a PR title or branch name and
+        Kriya follows along: PR opened → issue In progress, PR merged → Done, with the PR tracked
+        on the issue — signed by agent "GitHub". In your repo, open{" "}
+        <em>Settings → Webhooks → Add webhook</em> and use:
+      </p>
+      <ul className="ruled-list">
+        <li>
+          <span className="grow">
+            Payload URL: <code className="mono">{webhookUrl}</code>
+          </span>
+          <button className="link" onClick={() => navigator.clipboard.writeText(webhookUrl)}>copy</button>
+        </li>
+        <li>
+          <span className="grow">
+            Secret:{" "}
+            {secret ? <code className="mono">{secret}</code> : <span className="muted">hidden</span>}
+            {confirmRotate && (
+              <span className="muted"> — rotating breaks every connected repo until updated.</span>
+            )}
+          </span>
+          {secret ? (
+            <>
+              <button className="link" onClick={() => navigator.clipboard.writeText(secret)}>copy</button>
+              {confirmRotate ? (
+                <>
+                  <button className="link" onClick={rotate}>confirm rotate</button>
+                  <button className="link" onClick={() => setConfirmRotate(false)}>keep</button>
+                </>
+              ) : (
+                <button className="link" onClick={() => setConfirmRotate(true)}>rotate</button>
+              )}
+            </>
+          ) : (
+            <button className="link" onClick={reveal}>show</button>
+          )}
+        </li>
+        <li>
+          <span className="grow">
+            Content type <code className="mono">application/json</code> · Events: <em>Pull requests</em> only
+          </span>
+        </li>
+      </ul>
+      {error && <p className="error">{error}</p>}
+    </section>
   );
 }

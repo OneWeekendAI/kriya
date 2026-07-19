@@ -9,11 +9,15 @@
 // Setup (dashboard only, no CLI needed):
 //   1. Edge Functions → Deploy new function → name: github-webhook → paste this file.
 //   2. Edge Functions → github-webhook → Details -> turn OFF "Verify JWT".
-//   3. Project Settings → Edge Functions → add secret GITHUB_WEBHOOK_SECRET=<random string>.
-//   4. GitHub repo → Settings → Webhooks → add:
-//        URL: https://<project>.supabase.co/functions/v1/github-webhook
-//        Content type: application/json, Secret: same string,
-//        Events: "Pull requests" only.
+//   3. Members connect repos themselves: the app's "Connect GitHub" section
+//      shows the webhook URL + workspace secret (stored in github_settings,
+//      migration 0007) to paste into GitHub repo → Settings → Webhooks
+//      (content type application/json, "Pull requests" events only).
+//      A GITHUB_WEBHOOK_SECRET env var still works as a fallback for
+//      pre-0007 deployments.
+//
+// Each referenced PR is also upserted into issue_links (url + title +
+// open/merged/closed) so the issue panel shows live PR state.
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 const ISSUE_REF = /([A-Z][A-Z0-9]{1,7})-(\d+)/g;
@@ -48,8 +52,19 @@ export async function verifySignature(secret: string, body: string, signature: s
 }
 
 export async function handler(req: Request): Promise<Response> {
-  const secret = Deno.env.get("GITHUB_WEBHOOK_SECRET");
-  if (!secret) return new Response("GITHUB_WEBHOOK_SECRET not configured", { status: 500 });
+  // Service role (RLS bypass) is required because GitHub isn't a member;
+  // the x-kriya-agent header still attributes every change to "GitHub".
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    { global: { headers: { "x-kriya-agent": "GitHub" } } },
+  );
+
+  // Workspace secret from the database (self-serve via "Connect GitHub");
+  // env var kept as a fallback for pre-0007 deployments.
+  const { data: settings } = await supabase.from("github_settings").select("secret").maybeSingle();
+  const secret = settings?.secret ?? Deno.env.get("GITHUB_WEBHOOK_SECRET");
+  if (!secret) return new Response("no webhook secret configured — open Connect GitHub in the app once", { status: 500 });
 
   const body = await req.text();
   if (!(await verifySignature(secret, body, req.headers.get("x-hub-signature-256")))) {
@@ -69,14 +84,6 @@ export async function handler(req: Request): Promise<Response> {
   const refs = extractRefs(pr.title, pr.head?.ref);
   if (refs.length === 0) return new Response("no issue refs", { status: 200 });
 
-  // Service role (RLS bypass) is required because GitHub isn't a member;
-  // the x-kriya-agent header still attributes every change to "GitHub".
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    { global: { headers: { "x-kriya-agent": "GitHub" } } },
-  );
-
   const results: string[] = [];
   for (const ref of refs) {
     const { data: issue } = await supabase
@@ -91,19 +98,33 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     let comment: string;
+    let linkState: "open" | "merged" | "closed";
     if (action === "closed" && pr.merged) {
       if (issue.status !== "done" && issue.status !== "cancelled") {
         await supabase.from("issues").update({ status: "done" }).eq("id", issue.id);
       }
       comment = `PR merged: ${pr.html_url}`;
+      linkState = "merged";
     } else if (action === "closed") {
       comment = `PR closed without merging: ${pr.html_url}`;
+      linkState = "closed";
     } else {
       if (issue.status === "backlog" || issue.status === "todo") {
         await supabase.from("issues").update({ status: "in_progress" }).eq("id", issue.id);
       }
       comment = `PR ${action}: ${pr.html_url} — ${pr.title}`;
+      linkState = "open";
     }
+    await supabase.from("issue_links").upsert(
+      {
+        issue_id: issue.id,
+        url: pr.html_url,
+        title: pr.title ?? "",
+        state: linkState,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "issue_id,url" },
+    );
     await supabase.from("comments").insert({ issue_id: issue.id, body: comment });
     results.push(`${ref.key}-${ref.number}: ok`);
   }
