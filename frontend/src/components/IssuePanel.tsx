@@ -85,12 +85,14 @@ export function IssuePanel({
   members,
   onClose,
   onChanged,
+  inline = false,
 }: {
   issue: Issue;
   project: Project;
   members: Member[];
   onClose: () => void;
   onChanged: () => void;
+  inline?: boolean;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
@@ -137,8 +139,8 @@ export function IssuePanel({
 
   return (
     <>
-      <div className="panel-backdrop" onClick={onClose} />
-      <aside className="issue-panel">
+      {!inline && <div className="panel-backdrop" onClick={onClose} />}
+      <aside className={`issue-panel${inline ? " is-inline" : ""}`}>
         <header>
           <span className="entry-id">
             {project.key}-{issue.number}

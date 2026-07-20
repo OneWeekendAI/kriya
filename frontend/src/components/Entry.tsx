@@ -9,18 +9,20 @@ export function Entry({
   members,
   onSelect,
   draggable = false,
+  active = false,
 }: {
   issue: Issue;
   project: Project;
   members: Member[];
   onSelect: (issue: Issue) => void;
   draggable?: boolean;
+  active?: boolean;
 }) {
   const assignee = members.find((m) => m.user_id === issue.assignee_id);
   const closed = issue.status === "done" || issue.status === "cancelled";
   return (
     <article
-      className={`entry${closed ? " is-closed" : ""}`}
+      className={`entry${closed ? " is-closed" : ""}${active ? " active" : ""}`}
       draggable={draggable}
       onDragStart={draggable ? (e) => e.dataTransfer.setData("issue-id", issue.id) : undefined}
       onClick={() => onSelect(issue)}

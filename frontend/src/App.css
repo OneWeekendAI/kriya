@@ -265,8 +265,9 @@ textarea { line-height: 1.55; resize: vertical; }
   letter-spacing: 0.05em;
   color: var(--ink-2);
 }
+.layout-toggle button:not(:first-child) { border-left: none; }
 .layout-toggle button:first-child { border-radius: 3px 0 0 3px; }
-.layout-toggle button:last-child { border-radius: 0 3px 3px 0; border-left: none; }
+.layout-toggle button:last-child { border-radius: 0 3px 3px 0; }
 .layout-toggle button.active { color: var(--verm); border-color: var(--verm); background: var(--verm-wash); }
 
 /* --- Bento home ------------------------------------------------------------ */
@@ -646,3 +647,173 @@ pre.snippet {
 .billing-banner.hard { background: var(--danger); border-color: var(--danger); color: #fffdf8; }
 .billing-banner span { flex: 1; }
 .billing-banner.hard button { background: #fffdf8; color: var(--danger); border-color: #fffdf8; }
+
+/* --- Split View Layout ----------------------------------------------------- */
+
+.split-view {
+  display: flex;
+  gap: 20px;
+  height: calc(100vh - 125px);
+  overflow: hidden;
+  align-items: stretch;
+}
+
+.split-col {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.split-col--status {
+  width: 170px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  padding-right: 12px;
+}
+
+.split-col--issues {
+  width: 320px;
+  flex-shrink: 0;
+  border-right: 1px solid var(--line);
+  padding-right: 12px;
+}
+
+.split-col--details {
+  flex: 1;
+  min-width: 300px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.status-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.status-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  border: none;
+  padding: 8px 10px;
+  border-radius: 4px;
+  text-align: left;
+  background: none;
+  font-size: 0.86rem;
+  transition: background 120ms;
+}
+.status-item:hover { background: var(--paper-sunken); }
+.status-item.active {
+  background: var(--verm-wash);
+  color: var(--verm);
+  font-weight: 500;
+}
+.status-item .status-badge {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink-3);
+  padding: 1px 6px;
+  border-radius: 99px;
+  background: var(--paper-sunken);
+}
+.status-item.active .status-badge {
+  color: var(--verm);
+  background: var(--paper-raised);
+}
+
+.search-box {
+  margin-bottom: 8px;
+}
+.search-box input {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--paper-raised);
+  color: var(--ink);
+}
+.search-box input:focus {
+  outline: none;
+  border-color: var(--line-strong);
+}
+
+.quick-create-split {
+  margin-bottom: 12px;
+}
+.quick-create-split input {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 6px 8px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink);
+}
+.quick-create-split input:focus {
+  outline: none;
+  border-style: solid;
+  border-color: var(--verm);
+  background: var(--paper-raised);
+}
+
+.split-issue-list {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0px;
+  padding-right: 4px;
+}
+
+.entry.active {
+  background: var(--verm-wash);
+  box-shadow: inset 3px 0 0 var(--verm);
+  padding-left: 8px;
+}
+
+.issue-panel.is-inline {
+  position: static;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  z-index: auto;
+  border-left: none;
+  box-shadow: none;
+  padding: 0 10px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: none;
+}
+
+.split-empty-details {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  text-align: center;
+  color: var(--ink-3);
+  padding: 40px 20px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  margin: 0 10px;
+}
+.split-empty-details h3 {
+  font-family: var(--serif);
+  font-size: 1.25rem;
+  color: var(--ink-2);
+  margin: 8px 0 4px;
+}
+.split-empty-details p {
+  font-size: 0.85rem;
+  max-width: 280px;
+  margin: 0;
+  line-height: 1.4;
+}
