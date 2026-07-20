@@ -60,11 +60,13 @@ function likePattern(search: string): string {
   return `%${search.replace(/[,()]/g, " ").trim()}%`;
 }
 
-function createServer(supabase: SupabaseClient, agentName: string): McpServer {
+function createServer(supabase: SupabaseClient, agentName: string, workspaceId: string): McpServer {
   const server = new McpServer({ name: "kriya", version: "0.1.0" });
 
   async function projectByKey(key: string) {
-    const { data, error } = await supabase.from("projects").select("*").eq("key", key.toUpperCase()).single();
+    const { data, error } = await supabase.from("projects").select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("key", key.toUpperCase()).single();
     if (error || !data) fail(`No project with key '${key}'`);
     return data;
   }
@@ -96,13 +98,30 @@ function createServer(supabase: SupabaseClient, agentName: string): McpServer {
   }
 
   async function memberByEmail(email: string) {
-    const { data, error } = await supabase.from("members").select("*").eq("email", email).single();
+    const { data, error } = await supabase.from("workspace_members").select("*")
+      .eq("workspace_id", workspaceId)
+      .eq("email", email).single();
     if (error || !data) fail(`No member with email '${email}'`);
     return data;
   }
 
+  // Fetch a name lookup {user_id → display_name} for this workspace, used to
+  // hydrate assignee/author/actor columns after issue/comment/activity reads.
+  // We do this in-process because auth.users isn't exposed via PostgREST, so
+  // the previous embedded `members!fk` selects can't be replaced with an
+  // embed against auth.users. One extra roundtrip per tool call.
+  async function memberNames(): Promise<Map<string, { display_name: string; email: string }>> {
+    const { data } = await supabase.from("workspace_members")
+      .select("user_id, display_name, email")
+      .eq("workspace_id", workspaceId);
+    return new Map((data ?? []).map((m: any) => [m.user_id, { display_name: m.display_name, email: m.email }]));
+  }
+
 server.tool("list_projects", "List all projects in the workspace", {}, async () => {
-  const { data, error } = await supabase.from("projects").select("key, name, color, created_at").order("name");
+  const { data, error } = await supabase.from("projects")
+    .select("key, name, color, created_at")
+    .eq("workspace_id", workspaceId)
+    .order("name");
   if (error) fail(error.message);
   return json(data);
 });
@@ -114,7 +133,7 @@ server.tool(
   async ({ key, name, color }) => {
     const { data, error } = await supabase
       .from("projects")
-      .insert({ key: key.toUpperCase(), name, color })
+      .insert({ workspace_id: workspaceId, key: key.toUpperCase(), name, color })
       .select().single();
     if (error) fail(error.message);
     return json(data);
@@ -122,7 +141,10 @@ server.tool(
 );
 
 server.tool("list_members", "List workspace members (for assigning issues)", {}, async () => {
-  const { data, error } = await supabase.from("members").select("display_name, email").order("display_name");
+  const { data, error } = await supabase.from("workspace_members")
+    .select("display_name, email")
+    .eq("workspace_id", workspaceId)
+    .order("display_name");
   if (error) fail(error.message);
   return json(data);
 });
@@ -143,7 +165,8 @@ server.tool(
   async ({ project_key, status, priority, assignee_email, assignee_agent, needs_review, search, limit }) => {
     let q = supabase
       .from("issues")
-      .select("number, title, status, priority, due_date, created_by_agent, assignee_agent, needs_review, created_at, projects!inner(key), assignee:members!issues_assignee_id_fkey(display_name, email)")
+      .select("number, title, status, priority, due_date, created_by_agent, assignee_id, assignee_agent, needs_review, created_at, projects!inner(key, workspace_id)")
+      .eq("projects.workspace_id", workspaceId)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (project_key) q = q.eq("projects.key", project_key.toUpperCase());
@@ -158,13 +181,14 @@ server.tool(
     }
     const { data, error } = await q;
     if (error) fail(error.message);
+    const names = await memberNames();
     return json(
       (data ?? []).map((i: any) => ({
         id: `${i.projects.key}-${i.number}`,
         title: i.title,
         status: i.status,
         priority: i.priority,
-        assignee: i.assignee?.display_name ?? null,
+        assignee: i.assignee_id ? names.get(i.assignee_id)?.display_name ?? null : null,
         assignee_agent: i.assignee_agent,
         needs_review: i.needs_review,
         due_date: i.due_date,
@@ -180,21 +204,29 @@ server.tool(
   issueIdArgs,
   async (args) => {
     const { project, issue } = await issueFromArgs(args);
-    const [{ data: comments }, { data: activity }, { data: labels }] = await Promise.all([
+    const [{ data: comments }, { data: activity }, { data: labels }, names] = await Promise.all([
       supabase.from("comments")
-        .select("body, agent_name, created_at, author:members!comments_author_id_fkey(display_name)")
+        .select("body, agent_name, author_id, created_at")
         .eq("issue_id", issue.id).order("created_at"),
       supabase.from("activity")
-        .select("action, old_value, new_value, agent_name, created_at, actor:members!activity_actor_id_fkey(display_name)")
+        .select("action, old_value, new_value, agent_name, actor_id, created_at")
         .eq("issue_id", issue.id).order("created_at"),
       supabase.from("issue_labels").select("label:labels(name, color)").eq("issue_id", issue.id),
+      memberNames(),
     ]);
     return json({
       id: `${project.key}-${issue.number}`,
       ...issue,
       labels: (labels ?? []).map((l: any) => l.label?.name),
-      comments,
-      activity,
+      comments: (comments ?? []).map((c: any) => ({
+        body: c.body, agent_name: c.agent_name, created_at: c.created_at,
+        author: c.author_id ? names.get(c.author_id)?.display_name ?? null : null,
+      })),
+      activity: (activity ?? []).map((a: any) => ({
+        action: a.action, old_value: a.old_value, new_value: a.new_value,
+        agent_name: a.agent_name, created_at: a.created_at,
+        actor: a.actor_id ? names.get(a.actor_id)?.display_name ?? null : null,
+      })),
     });
   }
 );
@@ -376,19 +408,20 @@ server.tool(
   async ({ since, limit }) => {
     let q = supabase
       .from("activity")
-      .select("action, old_value, new_value, agent_name, created_at, actor:members!activity_actor_id_fkey(display_name), issues!inner(number, title, projects!inner(key))")
+      .select("action, old_value, new_value, agent_name, actor_id, created_at, issues!inner(number, title, projects!inner(key, workspace_id))")
+      .eq("issues.projects.workspace_id", workspaceId)
       .not("agent_name", "is", null)
       .order("created_at", { ascending: false })
       .limit(limit);
     if (since) q = q.gte("created_at", since);
-    const { data, error } = await q;
+    const [{ data, error }, names] = await Promise.all([q, memberNames()]);
     if (error) fail(error.message);
     return json(
       (data ?? []).map((a: any) => ({
         issue: `${a.issues.projects.key}-${a.issues.number}`,
         issue_title: a.issues.title,
         agent: a.agent_name,
-        for: a.actor?.display_name ?? null,
+        for: a.actor_id ? names.get(a.actor_id)?.display_name ?? null : null,
         action: a.action,
         from: a.old_value,
         to: a.new_value,
@@ -401,10 +434,15 @@ server.tool(
   return server;
 }
 
-/** Anon-key client that signs in as a member (stdio + legacy shared mode). */
-async function signedInClient(): Promise<SupabaseClient> {
+/** Anon-key client that signs in as a member (stdio + legacy shared mode).
+ *  Multi-tenant: KRIYA_WORKSPACE_SLUG picks which workspace this session
+ *  operates in; the slug travels as an `x-workspace-slug` header so RLS
+ *  scopes reads/writes to that workspace. Also resolves the workspace_id
+ *  the caller must pass into createServer(). */
+async function signedInClient(): Promise<{ client: SupabaseClient; workspaceId: string }> {
+  const slug = env("KRIYA_WORKSPACE_SLUG");
   const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-    global: { headers: { "x-kriya-agent": AGENT } },
+    global: { headers: { "x-kriya-agent": AGENT, "x-workspace-slug": slug } },
   });
   const { error } = await client.auth.signInWithPassword({
     email: env("KRIYA_EMAIL"),
@@ -414,11 +452,17 @@ async function signedInClient(): Promise<SupabaseClient> {
     console.error(`Kriya sign-in failed: ${error.message}`);
     process.exit(1);
   }
-  return client;
+  const { data: wid, error: widErr } = await client.rpc("current_workspace_id");
+  if (widErr || !wid) {
+    console.error(`Not a member of workspace '${slug}' (or workspace doesn't exist)`);
+    process.exit(1);
+  }
+  return { client, workspaceId: wid as string };
 }
 
 interface KeyIdentity {
   user_id: string;
+  workspace_id: string;
   agent_name: string;
   display_name: string;
   email: string;
@@ -433,7 +477,9 @@ async function serveHttp(port: number) {
   }
 
   // Legacy shared-token mode: one signed-in identity for every request.
-  const sharedClient = sharedToken ? await signedInClient() : null;
+  const shared = sharedToken ? await signedInClient() : null;
+  const sharedClient = shared?.client ?? null;
+  const sharedWorkspaceId = shared?.workspaceId ?? null;
 
   // Agent-key mode: resolve `kriya_...` bearer keys to member identities via
   // the service role; the database trusts x-kriya-actor only from us.
@@ -467,12 +513,21 @@ async function serveHttp(port: number) {
     const bearer = (req.headers.authorization ?? "").replace(/^Bearer /, "");
     let db: SupabaseClient | null = null;
     let agentName = AGENT;
+    let workspaceId: string | null = null;
     if (sharedClient && sharedToken && bearer === sharedToken) {
       db = sharedClient;
+      workspaceId = sharedWorkspaceId;
     } else if (bearer.startsWith("kriya_")) {
       const resolved = await clientForKey(bearer);
       db = resolved?.client ?? null;
-      if (resolved) agentName = resolved.identity.agent_name;
+      if (resolved) {
+        agentName = resolved.identity.agent_name;
+        workspaceId = resolved.identity.workspace_id;
+      }
+    }
+    if (db && !workspaceId) {
+      res.status(500).json({ jsonrpc: "2.0", error: { code: -32002, message: "no workspace bound to this credential" }, id: null });
+      return;
     }
     if (!db) {
       res.status(401).json({
@@ -486,7 +541,7 @@ async function serveHttp(port: number) {
       // Stateless mode: one transport + server instance per request.
       const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
       res.on("close", () => void transport.close());
-      await createServer(db, agentName).connect(transport);
+      await createServer(db, agentName, workspaceId!).connect(transport);
       await transport.handleRequest(req, res, req.body);
     } catch (e) {
       console.error("request failed:", e);
@@ -508,7 +563,8 @@ async function main() {
   if (port) {
     await serveHttp(Number(port));
   } else {
-    await createServer(await signedInClient(), AGENT).connect(new StdioServerTransport());
+    const { client, workspaceId } = await signedInClient();
+    await createServer(client, AGENT, workspaceId).connect(new StdioServerTransport());
     console.error(`Kriya MCP server running as agent "${AGENT}"`);
   }
 }
