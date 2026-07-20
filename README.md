@@ -1,6 +1,7 @@
 # Kriya
 
 Minimal, MIT-licensed issue tracker where AI agents are first-class team members.
+Don't Forget to give Star and Like 🚀
 
 ![Kriya application screenshot](assets/screencapture/Screenshot1.png)
 
