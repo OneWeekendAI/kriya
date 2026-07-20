@@ -491,11 +491,22 @@ textarea { line-height: 1.55; resize: vertical; }
 .field-row select, .field-row input { border-bottom: none; padding: 4px 0; font-size: 0.85rem; width: 100%; }
 
 .issue-panel textarea {
-  min-height: 90px;
+  min-height: 180px;
   font-size: 0.87rem;
-  border: none;
-  border-bottom: 1px solid var(--line);
-  padding: 4px 0;
+  line-height: 1.5;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 12px;
+  background: var(--paper-sunken);
+  color: var(--ink);
+  font-family: var(--sans);
+  resize: vertical;
+  transition: border-color 120ms, background 120ms;
+}
+.issue-panel textarea:focus {
+  outline: none;
+  border-color: var(--verm);
+  background: var(--paper-raised);
 }
 
 .ledger-stream { display: flex; flex-direction: column; }
@@ -816,4 +827,160 @@ pre.snippet {
   max-width: 280px;
   margin: 0;
   line-height: 1.4;
+}
+
+/* --- Kriya Date Picker ----------------------------------------------------- */
+
+.kriya-datepicker {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.kriya-datepicker-trigger {
+  width: 100%;
+  border: none;
+  background: none;
+  padding: 4px 0;
+  text-align: left;
+  font-family: var(--mono);
+  font-size: 0.85rem;
+  color: var(--ink);
+  cursor: pointer;
+  outline: none;
+  transition: color 100ms;
+}
+.kriya-datepicker-trigger:hover {
+  color: var(--verm);
+}
+
+.kriya-datepicker-popover {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  margin-top: 6px;
+  width: 250px;
+  background: var(--paper-raised);
+  border: 1px solid var(--line-strong);
+  border-radius: 6px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  font-family: var(--sans);
+  color: var(--ink);
+}
+
+.kriya-datepicker-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.kriya-datepicker-month-year {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.kriya-datepicker-nav {
+  display: flex;
+  gap: 4px;
+}
+
+.kriya-datepicker-nav-btn {
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  padding: 2px 6px;
+  color: var(--ink-2);
+  border-radius: 3px;
+  transition: background 100ms, color 100ms;
+  width: auto;
+  line-height: 1;
+}
+.kriya-datepicker-nav-btn:hover {
+  background: var(--paper-sunken);
+  color: var(--ink);
+}
+
+.kriya-datepicker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--ink-3);
+  margin-bottom: 6px;
+}
+
+.kriya-datepicker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: 4px;
+  column-gap: 4px;
+}
+
+.kriya-datepicker-cell {
+  border: none;
+  background: none;
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 0.8rem;
+  color: var(--ink);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 100ms, color 100ms;
+  padding: 0;
+}
+
+.kriya-datepicker-cell:hover {
+  background: var(--paper-sunken);
+}
+
+.kriya-datepicker-cell.is-outside {
+  color: var(--ink-3);
+}
+
+.kriya-datepicker-cell.is-selected {
+  background: var(--verm);
+  color: #fffdf8 !important;
+  font-weight: 500;
+}
+
+.kriya-datepicker-cell.is-today:not(.is-selected) {
+  box-shadow: inset 0 0 0 1px var(--verm);
+  color: var(--verm);
+}
+
+.kriya-datepicker-footer {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+}
+
+.kriya-datepicker-footer-btn {
+  border: none;
+  background: none;
+  font-size: 0.76rem;
+  color: var(--ink-2);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 3px;
+  transition: background 100ms, color 100ms;
+}
+
+.kriya-datepicker-footer-btn:hover {
+  background: var(--paper-sunken);
+  color: var(--ink);
 }

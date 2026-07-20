@@ -3,6 +3,7 @@ import * as api from "../lib/api";
 import type { Activity, Comment, Issue, IssueLink, IssueStatus, Member, Project } from "../lib/types";
 import { PRIORITIES, STATUSES } from "../lib/types";
 import { initial } from "./Entry";
+import { DatePicker } from "./DatePicker";
 
 const STATUS_LABEL: Record<IssueStatus, string> = {
   backlog: "Backlog",
@@ -214,10 +215,9 @@ export function IssuePanel({
           )}
           <div className="field-row">
             <span className="overline">Due</span>
-            <input
-              type="date"
-              value={issue.due_date ?? ""}
-              onChange={(e) => patch({ due_date: e.target.value || null })}
+            <DatePicker
+              value={issue.due_date}
+              onChange={(val) => patch({ due_date: val })}
             />
           </div>
         </div>
