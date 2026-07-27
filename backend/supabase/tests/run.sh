@@ -29,3 +29,16 @@ docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 10_tests.sq
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 20_team_tests.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 30_queue_tests.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 40_github_tests.sql
+
+# find/ (0013) needs workspaces + billing migrations before it. Apply the
+# rest of the chain on a fresh row of tests so earlier suites keep their
+# pre-workspace schema assumptions.
+run_sql ../migrations/0003_billing.sql
+run_sql ../migrations/0004_billing_enforcement.sql
+run_sql ../migrations/0008_signup_billing_fix.sql
+run_sql ../migrations/0009_open_enrollment.sql
+run_sql ../migrations/0010_workspaces.sql
+run_sql ../migrations/0011_restore_user_fks.sql
+run_sql ../migrations/0012_billing_workspace.sql
+run_sql ../migrations/0013_find.sql
+docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 50_find_tests.sql

@@ -231,6 +231,59 @@ server.tool(
   }
 );
 
+// Spotlight-style search. Pure prose in, ranked ids out. If the query is an
+// issue key (KEY-42), short-circuit to that issue and skip search.
+const ISSUE_KEY_RE = /^([A-Za-z][A-Za-z0-9]{1,7})-(\d+)$/;
+
+server.tool(
+  "find",
+  "Find issues by natural-language query — searches titles, descriptions, comments, and linked PR titles. Returns up to 10 ranked hits: {id, title, snippet, score}. Pick an id and call get_issue for the full record. If the query is an issue id like 'KRIYA-42', returns just that issue.",
+  { query: z.string().min(1).max(200) },
+  async ({ query }) => {
+    const trimmed = query.trim();
+    const keyMatch = trimmed.match(ISSUE_KEY_RE);
+    if (keyMatch) {
+      const { project, issue } = await issueRef(keyMatch[1], Number(keyMatch[2]));
+      return json([
+        {
+          id: `${project.key}-${issue.number}`,
+          title: issue.title,
+          snippet: (issue.description || "").slice(0, 140),
+          score: 1,
+        },
+      ]);
+    }
+
+    const { data: primary, error: pErr } = await supabase.rpc("find_issues", {
+      q: trimmed,
+      ws: workspaceId,
+      max_hits: 10,
+    });
+    if (pErr) fail(pErr.message);
+    const hits: Array<{ id: string; title: string; snippet: string; score: number }> =
+      (primary as any[]) ?? [];
+
+    if (hits.length < 3) {
+      const { data: fuzzy, error: fErr } = await supabase.rpc("find_issues_fuzzy", {
+        q: trimmed,
+        ws: workspaceId,
+        max_hits: 10,
+      });
+      if (fErr) fail(fErr.message);
+      const seen = new Set(hits.map((h) => h.id));
+      for (const h of ((fuzzy as any[]) ?? [])) {
+        if (!seen.has(h.id)) {
+          hits.push(h);
+          seen.add(h.id);
+        }
+      }
+    }
+
+    hits.sort((a, b) => b.score - a.score);
+    return json(hits.slice(0, 10));
+  }
+);
+
 server.tool(
   "create_issue",
   "Create an issue in a project. Attribution to this agent is automatic.",
