@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { parseMarkdown } from "../lib/markdown";
 import * as api from "../lib/api";
 import type { Activity, Comment, Issue, IssueLink, IssueStatus, Member, Project } from "../lib/types";
 import { PRIORITIES, STATUSES } from "../lib/types";
@@ -101,13 +102,20 @@ export function IssuePanel({
   const [links, setLinks] = useState<IssueLink[]>([]);
   const [newComment, setNewComment] = useState("");
   const [description, setDescription] = useState(issue.description);
+  const [isEditingDesc, setIsEditingDesc] = useState(!issue.description?.trim());
 
   useEffect(() => {
     setDescription(issue.description);
+    setIsEditingDesc(!issue.description?.trim());
     void api.listComments(issue.id).then(setComments);
     void api.listActivity(issue.id).then(setActivity);
     void api.listIssueLinks(issue.id).then(setLinks);
   }, [issue]);
+
+  const renderedDescHtml = useMemo(() => {
+    if (!description?.trim()) return "";
+    return parseMarkdown(description);
+  }, [description]);
 
   useEffect(() => {
     void api.knownAgents().then(setAgents);
@@ -240,12 +248,58 @@ export function IssuePanel({
           </section>
         )}
 
-        <textarea
-          placeholder="Description (markdown)"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={() => description !== issue.description && patch({ description })}
-        />
+        <section className="description-section">
+          <div className="description-header">
+            <span className="overline">Description</span>
+            <div className="description-toggle">
+              <button
+                type="button"
+                className={!isEditingDesc ? "active" : ""}
+                onClick={() => {
+                  if (isEditingDesc && description !== issue.description) {
+                    void patch({ description });
+                  }
+                  setIsEditingDesc(false);
+                }}
+              >
+                Preview
+              </button>
+              <button
+                type="button"
+                className={isEditingDesc ? "active" : ""}
+                onClick={() => setIsEditingDesc(true)}
+              >
+                Edit
+              </button>
+            </div>
+          </div>
+
+          {isEditingDesc ? (
+            <textarea
+              placeholder="Description (markdown supported)…"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              onBlur={() => {
+                if (description !== issue.description) {
+                  void patch({ description });
+                }
+              }}
+              autoFocus
+            />
+          ) : (
+            <div
+              className={`description-preview markdown-body${!description?.trim() ? " is-empty" : ""}`}
+              onClick={() => !description?.trim() && setIsEditingDesc(true)}
+              onDoubleClick={() => setIsEditingDesc(true)}
+              title="Double-click to edit description"
+              dangerouslySetInnerHTML={{
+                __html:
+                  renderedDescHtml ||
+                  "No description provided. Click or double-click to add details.",
+              }}
+            />
+          )}
+        </section>
 
         <section>
           <span className="overline">Ledger</span>
