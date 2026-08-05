@@ -47,7 +47,9 @@ export function Board({
       </form>
       <div className="board">
         {STATUSES.map((status) => {
-          const col = issues.filter((i) => i.status === status);
+          const col = Array.from(
+            new Map(issues.filter((i) => i.status === status).map((i) => [i.id, i])).values()
+          );
           return (
             <section
               key={status}
@@ -66,9 +68,9 @@ export function Board({
               <h2>
                 {STATUS_LABEL[status]} <span className="count">{col.length}</span>
               </h2>
-              {col.map((issue) => (
+              {col.map((issue, idx) => (
                 <Entry
-                  key={issue.id}
+                  key={`${issue.id}-${idx}`}
                   issue={issue}
                   project={project}
                   members={members}

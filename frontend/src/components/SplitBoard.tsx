@@ -45,12 +45,16 @@ export function SplitBoard({
       `${project.key}-${i.number}`.toLowerCase().includes(searchQuery.toLowerCase())
     );
 
+  const uniqueFilteredIssues = Array.from(
+    new Map(filteredIssues.map((i) => [i.id, i])).values()
+  );
+
   // Auto-select the first issue in the filtered list if none is selected
   useEffect(() => {
-    if (!selected && filteredIssues.length > 0) {
-      onSelect(filteredIssues[0]);
+    if (!selected && uniqueFilteredIssues.length > 0) {
+      onSelect(uniqueFilteredIssues[0]);
     }
-  }, [selected, filteredIssues, onSelect]);
+  }, [selected, uniqueFilteredIssues, onSelect]);
 
   async function handleQuickCreate(e: React.FormEvent) {
     e.preventDefault();
@@ -75,8 +79,6 @@ export function SplitBoard({
               className={`status-item ${selectedStatus === status ? "active" : ""}`}
               onClick={() => {
                 setSelectedStatus(status);
-                // When status changes, keep the selected issue if it matches the status,
-                // or deselect it if it doesn't match the new status column.
                 if (selected && selected.status !== status) {
                   onSelect(null);
                 }
@@ -110,14 +112,14 @@ export function SplitBoard({
         </form>
 
         <div className="split-issue-list">
-          {filteredIssues.length === 0 ? (
+          {uniqueFilteredIssues.length === 0 ? (
             <p className="empty-note" style={{ padding: "20px 10px" }}>
               No {STATUS_LABEL[selectedStatus].toLowerCase()} entries found.
             </p>
           ) : (
-            filteredIssues.map((issue) => (
+            uniqueFilteredIssues.map((issue, idx) => (
               <Entry
-                key={issue.id}
+                key={`${issue.id}-${idx}`}
                 issue={issue}
                 project={project}
                 members={members}

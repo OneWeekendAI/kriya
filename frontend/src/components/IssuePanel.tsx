@@ -304,8 +304,8 @@ export function IssuePanel({
         <section>
           <span className="overline">Ledger</span>
           <div className="ledger-stream">
-            {groupSessions(ledger).map((s) => (
-              <div key={s.id} className="ledger-item">
+            {groupSessions(ledger).map((s, sIdx) => (
+              <div key={`${s.id}-${sIdx}`} className="ledger-item">
                 <span className={`av${s.agent ? " av--agent" : ""}`}>
                   {initial(s.agent ?? members.find((m) => m.user_id === s.actorId)?.display_name ?? "?")}
                 </span>
@@ -315,11 +315,15 @@ export function IssuePanel({
                   {s.lines.length > 1 && (
                     <span className="session-count">{s.lines.length} entries</span>
                   )}
-                  {s.lines.map((line) =>
+                  {s.lines.map((line, lIdx) =>
                     line.kind === "comment" ? (
-                      <p key={line.id} className="what said">{line.c.body}</p>
+                      <div
+                        key={`${line.id}-${lIdx}`}
+                        className="what said markdown-body"
+                        dangerouslySetInnerHTML={{ __html: parseMarkdown(line.c.body) }}
+                      />
                     ) : (
-                      <p key={line.id} className="what">{describe(line.a)}</p>
+                      <p key={`${line.id}-${lIdx}`} className="what">{describe(line.a)}</p>
                     ),
                   )}
                 </div>
@@ -329,10 +333,17 @@ export function IssuePanel({
         </section>
 
         <form className="comment-box" onSubmit={comment}>
-          <input
-            placeholder="Write in the ledger…"
+          <textarea
+            placeholder="Write in the ledger (markdown supported, Shift+Enter for new line)…"
             value={newComment}
             onChange={(e) => setNewComment(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void comment(e);
+              }
+            }}
+            rows={2}
           />
           <button type="submit" className="btn-primary">Log it</button>
         </form>

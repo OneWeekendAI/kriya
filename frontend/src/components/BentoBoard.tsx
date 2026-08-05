@@ -60,14 +60,16 @@ export function BentoBoard({
         <span className="overline">Board</span>
         <div className="bento-cols">
           {BOARD_COLS.map(({ status, label }) => {
-            const col = issues.filter((i) => i.status === status);
+            const col = Array.from(
+              new Map(issues.filter((i) => i.status === status).map((i) => [i.id, i])).values()
+            );
             return (
               <div key={status}>
                 <div className="bento-col-head">
                   {label} — {col.length}
                 </div>
-                {col.slice(0, 3).map((issue) => (
-                  <Entry key={issue.id} issue={issue} project={project} members={members} onSelect={onSelect} />
+                {col.slice(0, 3).map((issue, idx) => (
+                  <Entry key={`${issue.id}-${idx}`} issue={issue} project={project} members={members} onSelect={onSelect} />
                 ))}
                 {col.length > 3 && (
                   <button className="link" style={{ fontSize: "0.74rem" }} onClick={onOpenBoard}>

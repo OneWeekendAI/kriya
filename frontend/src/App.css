@@ -523,9 +523,44 @@ textarea { line-height: 1.55; resize: vertical; }
   border: 1px solid var(--line); border-radius: 8px; padding: 0 6px; margin-left: 6px;
 }
 .ledger-item .what.said { color: var(--ink); }
+.ledger-item .what.said.markdown-body {
+  color: var(--ink);
+  font-size: 0.85rem;
+  line-height: 1.55;
+  margin-top: 4px;
+}
+.ledger-item .what.said.markdown-body p {
+  margin-bottom: 0.4em;
+}
+.ledger-item .what.said.markdown-body p:last-child {
+  margin-bottom: 0;
+}
+.ledger-item .what.said.markdown-body table {
+  margin: 0.5em 0;
+  font-size: 0.8rem;
+}
 
-.comment-box { display: flex; gap: 8px; border-top: 1px solid var(--line-strong); padding-top: 12px; }
-.comment-box input { flex: 1; font-size: 0.87rem; }
+.comment-box { display: flex; gap: 8px; align-items: flex-end; border-top: 1px solid var(--line-strong); padding-top: 12px; }
+.comment-box textarea {
+  flex: 1;
+  font-size: 0.87rem;
+  min-height: 42px;
+  max-height: 160px;
+  padding: 8px 10px;
+  background: var(--paper-sunken);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  resize: vertical;
+}
+.comment-box textarea:focus {
+  outline: none;
+  border-color: var(--verm);
+  background: var(--paper-raised);
+}
+.comment-box button {
+  height: 38px;
+  flex: none;
+}
 
 /* --- Agent feed ------------------------------------------------------------ */
 
