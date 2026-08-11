@@ -42,3 +42,7 @@ run_sql ../migrations/0011_restore_user_fks.sql
 run_sql ../migrations/0012_billing_workspace.sql
 run_sql ../migrations/0013_find.sql
 docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 50_find_tests.sql
+
+# Public sharing (0014) — hosted-only, same workspace/billing chain as find/.
+run_sql ../migrations/0014_public_share.sql
+docker exec -i $CONTAINER psql -U postgres -v ON_ERROR_STOP=1 -f - < 60_share_tests.sql

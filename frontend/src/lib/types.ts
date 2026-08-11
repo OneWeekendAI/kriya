@@ -71,3 +71,29 @@ export interface Activity {
   new_value: string | null;
   created_at: string;
 }
+
+// --- Kriya Public (per-project share links) ---------------------------------
+// The read-only payload served by the anon `get_public_project` RPC. Human
+// identity never appears here — assignee_id / created_by are always null and
+// the activity ledger is absent, so members stay anonymous to the public.
+
+export interface PublicLink {
+  url: string;
+  title: string;
+  state: "open" | "merged" | "closed";
+}
+
+export type PublicIssue = Issue & { links: PublicLink[] };
+
+export interface PublicComment {
+  issue_id: string;
+  body: string;
+  agent_name: string | null;
+  created_at: string;
+}
+
+export interface PublicProjectData {
+  project: { key: string; name: string; color: string };
+  issues: PublicIssue[];
+  comments: PublicComment[];
+}

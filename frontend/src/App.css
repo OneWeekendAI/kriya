@@ -255,6 +255,8 @@ textarea { line-height: 1.55; resize: vertical; }
 .view-head .title-row { display: flex; align-items: baseline; gap: 10px; }
 .view-head .mono-meta { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-3); }
 
+.view-head-actions { display: flex; align-items: center; gap: 14px; }
+
 .layout-toggle { display: flex; gap: 0; }
 .layout-toggle button {
   border-radius: 0;
@@ -269,6 +271,22 @@ textarea { line-height: 1.55; resize: vertical; }
 .layout-toggle button:first-child { border-radius: 3px 0 0 3px; }
 .layout-toggle button:last-child { border-radius: 0 3px 3px 0; }
 .layout-toggle button.active { color: var(--verm); border-color: var(--verm); background: var(--verm-wash); }
+
+/* --- Kriya Public share control ------------------------------------------- */
+.share-control { display: flex; align-items: center; gap: 8px; }
+.share-control input {
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--ink-2);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  padding: 4px 8px;
+  background: var(--paper-raised);
+  width: 300px;
+  cursor: pointer;
+}
+.share-control .link.danger { color: var(--verm); }
+.share-control .error { margin: 0; }
 
 /* --- Bento home ------------------------------------------------------------ */
 
