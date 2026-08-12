@@ -446,23 +446,76 @@ textarea { line-height: 1.55; resize: vertical; }
   top: 0;
   right: 0;
   bottom: 0;
-  width: 440px;
-  max-width: 92vw;
+  width: var(--drawer-width, 620px);
+  max-width: 94vw;
   z-index: 21;
   background: var(--paper-raised);
   border-left: 1px solid var(--line-strong);
   box-shadow: var(--shadow-panel);
-  padding: 18px 22px;
+  padding: 18px 24px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
   gap: 14px;
   animation: slide-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: width 150ms cubic-bezier(0.2, 0.9, 0.3, 1);
 }
 @keyframes slide-in { from { transform: translateX(40px); opacity: 0; } to { transform: none; opacity: 1; } }
 
+.issue-panel.is-resizing {
+  transition: none !important;
+  user-select: none;
+  border-left-color: var(--verm);
+}
+
+.panel-resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  width: 10px;
+  cursor: col-resize;
+  z-index: 10;
+  user-select: none;
+  touch-action: none;
+}
+
+.panel-resizer::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  background: transparent;
+  transition: background-color 150ms ease;
+}
+
+.panel-resizer:hover::after,
+.issue-panel.is-resizing .panel-resizer::after {
+  background: var(--verm);
+}
+
 .issue-panel header { display: flex; align-items: center; gap: 8px; }
 .issue-panel header .entry-id { flex: 1; }
+.panel-header-actions { display: flex; align-items: center; gap: 6px; }
+.panel-size-btn {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 2px 7px;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink-3);
+  border-radius: 3px;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: color 120ms, border-color 120ms, background-color 120ms;
+}
+.panel-size-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-2);
+  background: var(--paper-sunken);
+}
 .issue-panel header .close {
   border: none;
   padding: 2px 8px;
@@ -842,7 +895,7 @@ pre.snippet {
 
 .issue-panel.is-inline {
   position: static;
-  width: 100%;
+  width: 100% !important;
   height: 100%;
   max-width: none;
   z-index: auto;
@@ -854,6 +907,7 @@ pre.snippet {
   flex-direction: column;
   gap: 14px;
   animation: none;
+  transition: none;
 }
 
 .split-empty-details {

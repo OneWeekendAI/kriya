@@ -5,6 +5,7 @@ import type { Activity, Comment, Issue, IssueLink, IssueStatus, Member, Project 
 import { PRIORITIES, STATUSES } from "../lib/types";
 import { initial } from "./Entry";
 import { DatePicker } from "./DatePicker";
+import { useDrawerResize } from "../lib/useDrawerResize";
 
 const STATUS_LABEL: Record<IssueStatus, string> = {
   backlog: "Backlog",
@@ -96,6 +97,15 @@ export function IssuePanel({
   onChanged: () => void;
   inline?: boolean;
 }) {
+  const {
+    width: drawerWidth,
+    isDragging,
+    isExpanded,
+    handleMouseDown,
+    handleTouchStart,
+    toggleSize,
+  } = useDrawerResize(inline);
+
   const [comments, setComments] = useState<Comment[]>([]);
   const [activity, setActivity] = useState<Activity[]>([]);
   const [agents, setAgents] = useState<string[]>([]);
@@ -149,7 +159,19 @@ export function IssuePanel({
   return (
     <>
       {!inline && <div className="panel-backdrop" onClick={onClose} />}
-      <aside className={`issue-panel${inline ? " is-inline" : ""}`}>
+      <aside
+        className={`issue-panel${inline ? " is-inline" : ""}${isDragging ? " is-resizing" : ""}`}
+        style={inline || drawerWidth === undefined ? undefined : { width: `${drawerWidth}px` }}
+      >
+        {!inline && (
+          <div
+            className="panel-resizer"
+            onMouseDown={handleMouseDown}
+            onTouchStart={handleTouchStart}
+            onDoubleClick={toggleSize}
+            title="Drag to resize drawer, double-click to toggle width"
+          />
+        )}
         <header>
           <span className="entry-id">
             {project.key}-{issue.number}
@@ -159,7 +181,19 @@ export function IssuePanel({
               </span>
             )}
           </span>
-          <button className="close" onClick={onClose}>esc ✕</button>
+          <div className="panel-header-actions">
+            {!inline && (
+              <button
+                type="button"
+                className="panel-size-btn"
+                onClick={toggleSize}
+                title={isExpanded ? "Standard width" : "Expand width"}
+              >
+                {isExpanded ? "⤡ condense" : "⤢ expand"}
+              </button>
+            )}
+            <button className="close" onClick={onClose}>esc ✕</button>
+          </div>
         </header>
 
         <h2>{issue.title}</h2>
